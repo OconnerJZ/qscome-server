@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",                   // Compila a JS moderno
+    "module": "CommonJS",                 // Compatible con Node.js y TypeORM
+    "outDir": "./dist",                   // Carpeta de salida de JS compilado
+    "rootDir": "./src",                   // Carpeta de código fuente
+    "strict": true,                       // Activa todas las verificaciones estrictas
+    "esModuleInterop": true,              // Permite importaciones estilo ES desde CommonJS
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "experimentalDecorators": true,       // Necesario para TypeORM
+    "emitDecoratorMetadata": true,        // Necesario para TypeORM
+    "resolveJsonModule": true,            // Para poder importar archivos JSON
+    "allowSyntheticDefaultImports": true  // Facilita imports por defecto
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
