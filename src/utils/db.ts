@@ -4,6 +4,15 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+// En producción (dist/) las entidades serán .js, en desarrollo serán .ts
+const entitiesPath = process.env.NODE_ENV === "production" 
+  ? "dist/src/entities/*.js"
+  : "src/entities/*.ts";
+
+const migrationsPath = process.env.NODE_ENV === "production"
+  ? "dist/src/migrations/*.js"
+  : "src/migrations/*.ts";
+
 export const AppDataSource = new DataSource({
     type: "mysql",
     host: process.env.DB_HOST,
@@ -13,7 +22,7 @@ export const AppDataSource = new DataSource({
     database: process.env.DB_NAME,
     synchronize: false, // solo desarrollo
     logging: false,
-    entities: ["src/entities/*.ts"],
-    migrations: ["src/migrations/*.ts"],
+    entities: [entitiesPath],
+    migrations: [migrationsPath],
     subscribers: ["src/subscribers/*.ts"]
 });

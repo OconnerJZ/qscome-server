@@ -2,10 +2,12 @@
   "name": "qscome",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/server.js",
   "scripts": {
+    "build": "tsc",
     "dev": "nodemon --exec ts-node server.ts",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "start:dev": "ts-node server.ts"
   },
   "keywords": [],
   "author": "",
