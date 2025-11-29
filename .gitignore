@@ -1,2 +1,37 @@
+# Dependencias
 node_modules/
+package-lock.json
+
+# Variables de entorno
 .env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node
+.npm
+.node_repl_history
+
+# Testing
+coverage/
+.nyc_output/

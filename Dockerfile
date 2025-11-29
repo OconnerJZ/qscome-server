@@ -19,6 +19,10 @@ COPY tsconfig.json .
 # Compilar TS a JS
 RUN npx tsc
 
+# Verificar que la compilación fue exitosa
+RUN ls -la dist/ && test -f dist/server.js || (echo "Error: dist/server.js no fue generado" && exit 1)
+
+
 # Eliminar devDependencies para producción (reduce tamaño)
 RUN npm prune --production
 
@@ -37,4 +41,4 @@ USER appuser
 EXPOSE 3000
 
 # Ejecutar JS compilado
-CMD ["node", "dist/server.js"]
+CMD ["/app/wait-for-db.sh", "db", "node", "dist/server.js"]
