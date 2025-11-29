@@ -10,7 +10,9 @@ import menuRoutes from "./routes/menuRoutes";
 import orderRoutes from "./routes/orderRoutes";
 import paymentRoutes from "./routes/paymentRoutes"; */
 
-dotenv.config();
+dotenv.config({ 
+  debug: false  // Desactiva los tips
+});
 
 const app = express();
 app.use(cors());
