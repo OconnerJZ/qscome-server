@@ -1,18 +1,34 @@
 {
   "compilerOptions": {
-    "target": "ES2020",                   // Compila a JS moderno
-    "module": "CommonJS",                 // Compatible con Node.js y TypeORM
-    "outDir": "./dist",                   // Carpeta de salida de JS compilado
-    "rootDir": ".",                   // Carpeta de código fuente
-    "strict": true,                       // Activa todas las verificaciones estrictas
-    "esModuleInterop": true,              // Permite importaciones estilo ES desde CommonJS
+    "target": "ES2020",
+    "module": "CommonJS",
+    "outDir": "./dist",
+    "rootDir": ".",
+    "strict": true,
+    "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "experimentalDecorators": true,       // Necesario para TypeORM
-    "emitDecoratorMetadata": true,        // Necesario para TypeORM
-    "resolveJsonModule": true,            // Para poder importar archivos JSON
-    "allowSyntheticDefaultImports": true  // Facilita imports por defecto
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "moduleResolution": "node"
   },
-  "include": ["src/**/*", "server.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*",
+    "server.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    ".env",
+    ".env.*",
+    "Dockerfile",
+    ".dockerignore"
+  ]
 }
