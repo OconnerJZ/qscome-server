@@ -3,7 +3,7 @@
     "target": "ES2020",                   // Compila a JS moderno
     "module": "CommonJS",                 // Compatible con Node.js y TypeORM
     "outDir": "./dist",                   // Carpeta de salida de JS compilado
-    "rootDir": "./src",                   // Carpeta de código fuente
+    "rootDir": ".",                   // Carpeta de código fuente
     "strict": true,                       // Activa todas las verificaciones estrictas
     "esModuleInterop": true,              // Permite importaciones estilo ES desde CommonJS
     "forceConsistentCasingInFileNames": true,
@@ -13,6 +13,6 @@
     "resolveJsonModule": true,            // Para poder importar archivos JSON
     "allowSyntheticDefaultImports": true  // Facilita imports por defecto
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "server.ts"],
   "exclude": ["node_modules", "dist"]
 }
