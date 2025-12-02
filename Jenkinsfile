@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        PROJECT_DIR = '/home/usuario/qscome'
+        PROJECT_DIR = '/home/bjaramillo/qscome'
         BACKEND_CONTAINER = 'qscome-backend'
         COMPOSE_FILE = 'docker-compose.yml'
     }
