@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        PROJECT_DIR = '/home/bjaramillo/qscome'
+        PROJECT_DIR = '/home/usuario/qscome'
         BACKEND_CONTAINER = 'qscome-backend'
         COMPOSE_FILE = 'docker-compose.yml'
     }
@@ -45,19 +45,22 @@ pipeline {
         stage('📝 Update Code') {
             steps {
                 echo '📝 Sincronizando código con el servidor...'
-                sh """
-                    rsync -av --delete \
-                        --exclude='.git' \
-                        --exclude='node_modules' \
-                        --exclude='.env' \
-                        --exclude='dist' \
-                        --exclude='*.log' \
-                        --exclude='uploads' \
-                        --exclude='storage' \
-                        ${WORKSPACE}/ ${PROJECT_DIR}/backend/
+                script {
+                    def workspace = env.WORKSPACE
+                    sh """
+                        rsync -av --delete \
+                            --exclude='.git' \
+                            --exclude='node_modules' \
+                            --exclude='.env' \
+                            --exclude='dist' \
+                            --exclude='*.log' \
+                            --exclude='uploads' \
+                            --exclude='storage' \
+                            '${workspace}/' '${PROJECT_DIR}/backend/'
 
-                    echo "✅ Código sincronizado"
-                """
+                        echo "✅ Código sincronizado"
+                    """
+                }
             }
         }
 
