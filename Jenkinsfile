@@ -49,6 +49,7 @@ pipeline {
                     def workspace = env.WORKSPACE
                     sh """
                         rsync -av --delete \
+                            --no-perms --no-owner --no-group \
                             --exclude='.git' \
                             --exclude='node_modules' \
                             --exclude='.env' \
