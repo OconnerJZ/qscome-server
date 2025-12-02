@@ -5,6 +5,7 @@ pipeline {
         PROJECT_DIR = '/home/bjaramillo/qscome'
         BACKEND_CONTAINER = 'qscome-backend'
         COMPOSE_FILE = 'docker-compose.yml'
+        DOCKER_COMPOSE = 'docker compose'  // Usar plugin moderno
     }
 
     stages {
@@ -70,7 +71,7 @@ pipeline {
                 echo '🛑 Deteniendo contenedor actual...'
                 sh """
                     cd ${PROJECT_DIR}
-                    docker-compose stop backend || true
+                    ${DOCKER_COMPOSE} stop backend || true
                     echo "✅ Contenedor detenido"
                 """
             }
@@ -81,7 +82,7 @@ pipeline {
                 echo '🏗️ Construyendo nueva imagen Docker...'
                 sh """
                     cd ${PROJECT_DIR}
-                    docker-compose build --no-cache backend
+                    ${DOCKER_COMPOSE} build --no-cache backend
                     
                     # Verificar que la imagen se creó
                     if ! docker images | grep -q 'backend'; then
@@ -99,7 +100,7 @@ pipeline {
                 echo '🚀 Desplegando nueva versión...'
                 sh """
                     cd ${PROJECT_DIR}
-                    docker-compose up -d backend
+                    ${DOCKER_COMPOSE} up -d backend
                     echo "✅ Contenedor iniciado"
                 """
             }
@@ -178,7 +179,7 @@ pipeline {
                 sh """
                     cd ${PROJECT_DIR}
                     echo "=== Contenedores ==="
-                    docker-compose ps
+                    ${DOCKER_COMPOSE} ps
                     
                     echo ""
                     echo "=== Últimos logs ==="
@@ -232,10 +233,10 @@ pipeline {
                         echo "📦 Restaurando desde: \$LAST_BACKUP"
                         
                         # Detener contenedor fallido
-                        docker-compose stop backend
+                        ${DOCKER_COMPOSE} stop backend
                         
                         # Obtener nombre de imagen que usa docker-compose
-                        IMAGE_NAME=\$(docker-compose config | grep 'image:' | grep backend | awk '{print \$2}')
+                        IMAGE_NAME=\$(${DOCKER_COMPOSE} config | grep 'image:' | grep backend | awk '{print \$2}')
                         
                         # Si no hay imagen definida, docker-compose usa: directorio_servicio
                         if [ -z "\$IMAGE_NAME" ]; then
@@ -246,7 +247,7 @@ pipeline {
                         docker tag \$LAST_BACKUP \$IMAGE_NAME:latest
                         
                         # Levantar con el backup
-                        docker-compose up -d backend
+                        ${DOCKER_COMPOSE} up -d backend
 
                         echo "⏳ Esperando validación del rollback (15 segundos)..."
                         sleep 15
