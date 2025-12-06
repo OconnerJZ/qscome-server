@@ -7,25 +7,39 @@
     "build": "tsc",
     "dev": "nodemon --exec ts-node server.ts",
     "start": "node dist/server.js",
-    "start:dev": "ts-node server.ts"
+    "start:dev": "ts-node server.ts",
+    "typeorm": "typeorm-ts-node-commonjs",
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate",
+    "migration:run": "typeorm-ts-node-commonjs migration:run",
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert"
   },
-  "keywords": [],
+  "keywords": [
+    "food",
+    "delivery",
+    "api",
+    "qscome"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "body-parser": "^2.2.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "express-validator": "^7.3.1",
+    "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.15.3",
     "nodemon": "^3.1.11",
     "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.27"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/body-parser": "^1.19.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
+    "@types/jsonwebtoken": "^9.0.10",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"

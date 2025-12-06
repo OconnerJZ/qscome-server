@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { AppDataSource } from "../utils/db";
-import { User } from "../entities/User";
+import { User } from "../entities/Entities";
 
 const userRepo = AppDataSource.getRepository(User);
 
