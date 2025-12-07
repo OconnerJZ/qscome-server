@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { authenticate } from "../middlewares/authMiddleware";
-import { PaymentController } from "../controllers/paymentController";
+import { PaymentController } from "../controllers/PaymentController";
 
 const router = Router();
 const paymentController = new PaymentController();
