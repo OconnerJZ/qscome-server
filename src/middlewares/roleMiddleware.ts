@@ -7,7 +7,7 @@ export const authorize = (...allowedRoles: string[]) => {
             return res.status(401).json({ message: "Usuario no autenticado" });
         }
 
-        const userRole = req.user.role?.role_name;
+        const userRole = req.user.role;
 
         if (!allowedRoles.includes(userRole)) {
             return res.status(403).json({ message: "No tienes permiso para realizar esta acción" });
