@@ -12,13 +12,13 @@ import { MenuOptionGroups } from "./MenuOptionGroups";
 @Entity("menu_option_choices", { schema: "qscome" })
 export class MenuOptionChoices {
   @PrimaryGeneratedColumn({ type: "int", name: "choice_id" })
-  choiceId: number;
+  choiceId!: number;
 
   @Column("int", { name: "group_id" })
-  groupId: number;
+  groupId!: number;
 
   @Column("varchar", { name: "name", length: 255 })
-  name: string;
+  name!: string;
 
   @Column("decimal", {
     name: "price_extra",
@@ -27,7 +27,7 @@ export class MenuOptionChoices {
     scale: 2,
     default: () => "'0.00'",
   })
-  priceExtra: string | null;
+  priceExtra!: string | null;
 
   @Column("tinyint", {
     name: "is_default",
@@ -35,7 +35,7 @@ export class MenuOptionChoices {
     width: 1,
     default: () => "'0'",
   })
-  isDefault: boolean | null;
+  isDefault!: boolean | null;
 
   @ManyToOne(
     () => MenuOptionGroups,
@@ -43,5 +43,5 @@ export class MenuOptionChoices {
     { onDelete: "RESTRICT", onUpdate: "RESTRICT" }
   )
   @JoinColumn([{ name: "group_id", referencedColumnName: "groupId" }])
-  group: MenuOptionGroups;
+  group!: MenuOptionGroups;
 }

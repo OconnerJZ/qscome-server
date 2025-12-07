@@ -11,11 +11,11 @@ import { Users } from "./Users";
 @Entity("user_roles", { schema: "qscome" })
 export class UserRoles {
   @PrimaryGeneratedColumn({ type: "int", name: "role_id" })
-  roleId: number;
+  roleId!: number;
 
   @Column("varchar", { name: "role_name", unique: true, length: 50 })
-  roleName: string;
+  roleName!: string;
 
   @OneToMany(() => Users, (users) => users.role)
-  users: Users[];
+  users!: Users[];
 }

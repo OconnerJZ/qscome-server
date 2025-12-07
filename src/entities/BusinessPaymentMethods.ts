@@ -12,16 +12,16 @@ import { Business } from "./Business";
 @Entity("business_payment_methods", { schema: "qscome" })
 export class BusinessPaymentMethods {
   @PrimaryGeneratedColumn({ type: "int", name: "id" })
-  id: number;
+  id!: number;
 
   @Column("int", { name: "business_id" })
-  businessId: number;
+  businessId!: number;
 
   @Column("enum", {
     name: "method",
     enum: ["cash", "card", "wallet", "transfer"],
   })
-  method: "cash" | "card" | "wallet" | "transfer";
+  method!: "cash" | "card" | "wallet" | "transfer";
 
   @Column("tinyint", {
     name: "is_active",
@@ -29,22 +29,22 @@ export class BusinessPaymentMethods {
     width: 1,
     default: () => "'1'",
   })
-  isActive: boolean | null;
+  isActive!: boolean | null;
 
   @Column("longtext", { name: "config_json", nullable: true })
-  configJson: string | null;
+  configJson!: string | null;
 
   @Column("datetime", {
     name: "created_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  createdAt: Date | null;
+  createdAt!: Date | null;
 
   @ManyToOne(() => Business, (business) => business.businessPaymentMethods, {
     onDelete: "RESTRICT",
     onUpdate: "RESTRICT",
   })
   @JoinColumn([{ name: "business_id", referencedColumnName: "businessId" }])
-  business: Business;
+  business!: Business;
 }

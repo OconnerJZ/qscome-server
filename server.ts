@@ -6,14 +6,6 @@ import dotenv from "dotenv";
 import { AppDataSource } from "./src/utils/db";
 import { errorHandler } from "./src/middlewares/errorHandler";
 
-// Routes
-import authRoutes from "./src/routes/authRoutes";
-import userRoutes from "./src/routes/userRoutes";
-import businessRoutes from "./src/routes/businessRoutes";
-import menuRoutes from "./src/routes/menuRoutes";
-import orderRoutes from "./src/routes/orderRoutes";
-import paymentRoutes from "./src/routes/paymentRoutes";
-
 dotenv.config({ debug: false });
 
 const app = express();
@@ -44,12 +36,7 @@ app.get("/health", (req, res) => {
 });
 
 // API Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/business", businessRoutes);
-app.use("/api/menus", menuRoutes);
-app.use("/api/orders", orderRoutes);
-app.use("/api/payments", paymentRoutes);
+
 
 // Error handler (debe ir al final)
 app.use(errorHandler);
@@ -70,6 +57,7 @@ AppDataSource.initialize()
         app.listen(PORT, () => {
             console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
             console.log(`🌍 Entorno: ${process.env.NODE_ENV || "development"}`);
+            console.log("\n📡 Endpoints disponibles:");
         });
     })
     .catch((error) => {

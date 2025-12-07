@@ -12,10 +12,10 @@ import { Users } from "./Users";
 @Entity("user_wallets", { schema: "qscome" })
 export class UserWallets {
   @PrimaryGeneratedColumn({ type: "int", name: "wallet_id" })
-  walletId: number;
+  walletId!: number;
 
   @Column("int", { name: "user_id" })
-  userId: number;
+  userId!: number;
 
   @Column("decimal", {
     name: "balance",
@@ -24,19 +24,19 @@ export class UserWallets {
     scale: 2,
     default: () => "'0.00'",
   })
-  balance: string | null;
+  balance!: string | null;
 
   @Column("datetime", {
     name: "last_update",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  lastUpdate: Date | null;
+  lastUpdate!: Date | null;
 
   @ManyToOne(() => Users, (users) => users.userWallets, {
     onDelete: "RESTRICT",
     onUpdate: "RESTRICT",
   })
   @JoinColumn([{ name: "user_id", referencedColumnName: "userId" }])
-  user: Users;
+  user!: Users;
 }

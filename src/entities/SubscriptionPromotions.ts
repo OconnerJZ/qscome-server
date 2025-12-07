@@ -1,4 +1,4 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne } from "typeorm";
+import { Column, Entity, Index, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 import { Subscriptions } from "./Subscriptions";
 import { Promotions } from "./Promotions";
 
@@ -6,11 +6,11 @@ import { Promotions } from "./Promotions";
 @Index("promotion_id", ["promotionId"], {})
 @Entity("subscription_promotions", { schema: "qscome" })
 export class SubscriptionPromotions {
-  @Column("int", { name: "subscription_id", nullable: true })
-  subscriptionId: number | null;
+  @PrimaryColumn("int", { name: "subscription_id" })
+  subscriptionId!: number;
 
-  @Column("int", { name: "promotion_id", nullable: true })
-  promotionId: number | null;
+  @PrimaryColumn("int", { name: "promotion_id" })
+  promotionId!: number;
 
   @ManyToOne(
     () => Subscriptions,
@@ -20,7 +20,7 @@ export class SubscriptionPromotions {
   @JoinColumn([
     { name: "subscription_id", referencedColumnName: "subscriptionId" },
   ])
-  subscription: Subscriptions;
+  subscription!: Subscriptions;
 
   @ManyToOne(
     () => Promotions,
@@ -28,5 +28,5 @@ export class SubscriptionPromotions {
     { onDelete: "RESTRICT", onUpdate: "RESTRICT" }
   )
   @JoinColumn([{ name: "promotion_id", referencedColumnName: "promotionId" }])
-  promotion: Promotions;
+  promotion!: Promotions;
 }

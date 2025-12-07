@@ -12,16 +12,16 @@ import { Payments } from "./Payments";
 @Entity("refunds", { schema: "qscome" })
 export class Refunds {
   @PrimaryGeneratedColumn({ type: "int", name: "refund_id" })
-  refundId: number;
+  refundId!: number;
 
   @Column("int", { name: "payment_id" })
-  paymentId: number;
+  paymentId!: number;
 
   @Column("decimal", { name: "amount", precision: 10, scale: 2 })
-  amount: string;
+  amount!: string;
 
   @Column("text", { name: "reason", nullable: true })
-  reason: string | null;
+  reason!: string | null;
 
   @Column("enum", {
     name: "status",
@@ -29,19 +29,19 @@ export class Refunds {
     enum: ["pending", "completed", "failed"],
     default: () => "'pending'",
   })
-  status: "pending" | "completed" | "failed" | null;
+  status!: "pending" | "completed" | "failed" | null;
 
   @Column("datetime", {
     name: "created_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  createdAt: Date | null;
+  createdAt!: Date | null;
 
   @ManyToOne(() => Payments, (payments) => payments.refunds, {
     onDelete: "RESTRICT",
     onUpdate: "RESTRICT",
   })
   @JoinColumn([{ name: "payment_id", referencedColumnName: "paymentId" }])
-  payment: Payments;
+  payment!: Payments;
 }

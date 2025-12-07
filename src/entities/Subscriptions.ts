@@ -15,19 +15,19 @@ import { UserNotifications } from "./UserNotifications";
 @Entity("subscriptions", { schema: "qscome" })
 export class Subscriptions {
   @Column("int", { primary: true, name: "subscription_id" })
-  subscriptionId: number;
+  subscriptionId!: number;
 
   @Column("int", { name: "user_id", nullable: true })
-  userId: number | null;
+  userId!: number | null;
 
   @Column("varchar", { name: "subscription_type", nullable: true, length: 50 })
-  subscriptionType: string | null;
+  subscriptionType!: string | null;
 
   @Column("date", { name: "start_date", nullable: true })
-  startDate: string | null;
+  startDate!: string | null;
 
   @Column("date", { name: "cancel_date", nullable: true })
-  cancelDate: string | null;
+  cancelDate!: string | null;
 
   @Column("tinyint", {
     name: "is_paid",
@@ -35,30 +35,30 @@ export class Subscriptions {
     width: 1,
     default: () => "'0'",
   })
-  isPaid: boolean | null;
+  isPaid!: boolean | null;
 
   @ManyToOne(() => Users, (users) => users.subscriptions, {
     onDelete: "RESTRICT",
     onUpdate: "RESTRICT",
   })
   @JoinColumn([{ name: "user_id", referencedColumnName: "userId" }])
-  user: Users;
+  user!: Users;
 
   @OneToMany(
     () => SubscriptionPayments,
     (subscriptionPayments) => subscriptionPayments.subscription
   )
-  subscriptionPayments: SubscriptionPayments[];
+  subscriptionPayments!: SubscriptionPayments[];
 
   @OneToMany(
     () => SubscriptionPromotions,
     (subscriptionPromotions) => subscriptionPromotions.subscription
   )
-  subscriptionPromotions: SubscriptionPromotions[];
+  subscriptionPromotions!: SubscriptionPromotions[];
 
   @OneToMany(
     () => UserNotifications,
     (userNotifications) => userNotifications.subscription
   )
-  userNotifications: UserNotifications[];
+  userNotifications!: UserNotifications[];
 }

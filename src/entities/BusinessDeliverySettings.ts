@@ -12,10 +12,10 @@ import { Business } from "./Business";
 @Entity("business_delivery_settings", { schema: "qscome" })
 export class BusinessDeliverySettings {
   @PrimaryGeneratedColumn({ type: "int", name: "setting_id" })
-  settingId: number;
+  settingId!: number;
 
   @Column("int", { name: "business_id" })
-  businessId: number;
+  businessId!: number;
 
   @Column("decimal", {
     name: "delivery_radius_km",
@@ -24,7 +24,7 @@ export class BusinessDeliverySettings {
     scale: 2,
     default: () => "'5.00'",
   })
-  deliveryRadiusKm: string | null;
+  deliveryRadiusKm!: string | null;
 
   @Column("decimal", {
     name: "delivery_fee",
@@ -33,7 +33,7 @@ export class BusinessDeliverySettings {
     scale: 2,
     default: () => "'0.00'",
   })
-  deliveryFee: string | null;
+  deliveryFee!: string | null;
 
   @Column("decimal", {
     name: "min_order_amount",
@@ -42,10 +42,10 @@ export class BusinessDeliverySettings {
     scale: 2,
     default: () => "'0.00'",
   })
-  minOrderAmount: string | null;
+  minOrderAmount!: string | null;
 
   @Column("int", { name: "estimated_time_min", nullable: true })
-  estimatedTimeMin: number | null;
+  estimatedTimeMin!: number | null;
 
   @Column("tinyint", {
     name: "use_own_delivery",
@@ -53,29 +53,29 @@ export class BusinessDeliverySettings {
     width: 1,
     default: () => "'0'",
   })
-  useOwnDelivery: boolean | null;
+  useOwnDelivery!: boolean | null;
 
   @Column("longtext", { name: "polygon_json", nullable: true })
-  polygonJson: string | null;
+  polygonJson!: string | null;
 
   @Column("datetime", {
     name: "created_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  createdAt: Date | null;
+  createdAt!: Date | null;
 
   @Column("datetime", {
     name: "updated_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  updatedAt: Date | null;
+  updatedAt!: Date | null;
 
   @ManyToOne(() => Business, (business) => business.businessDeliverySettings, {
     onDelete: "RESTRICT",
     onUpdate: "RESTRICT",
   })
   @JoinColumn([{ name: "business_id", referencedColumnName: "businessId" }])
-  business: Business;
+  business!: Business;
 }

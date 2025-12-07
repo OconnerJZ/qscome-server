@@ -14,13 +14,13 @@ import { MenuOptions } from "./MenuOptions";
 @Entity("order_detail_options", { schema: "qscome" })
 export class OrderDetailOptions {
   @PrimaryGeneratedColumn({ type: "int", name: "order_detail_option_id" })
-  orderDetailOptionId: number;
+  orderDetailOptionId!: number;
 
   @Column("int", { name: "order_detail_id" })
-  orderDetailId: number;
+  orderDetailId!: number;
 
   @Column("int", { name: "option_id" })
-  optionId: number;
+  optionId!: number;
 
   @ManyToOne(
     () => OrderDetails,
@@ -30,7 +30,7 @@ export class OrderDetailOptions {
   @JoinColumn([
     { name: "order_detail_id", referencedColumnName: "orderDetailId" },
   ])
-  orderDetail: OrderDetails;
+  orderDetail!: OrderDetails;
 
   @ManyToOne(
     () => MenuOptions,
@@ -38,5 +38,5 @@ export class OrderDetailOptions {
     { onDelete: "RESTRICT", onUpdate: "RESTRICT" }
   )
   @JoinColumn([{ name: "option_id", referencedColumnName: "optionId" }])
-  option: MenuOptions;
+  option!: MenuOptions;
 }

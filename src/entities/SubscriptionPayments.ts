@@ -5,10 +5,10 @@ import { Subscriptions } from "./Subscriptions";
 @Entity("subscription_payments", { schema: "qscome" })
 export class SubscriptionPayments {
   @Column("int", { primary: true, name: "payment_id" })
-  paymentId: number;
+  paymentId!: number;
 
   @Column("int", { name: "subscription_id", nullable: true })
-  subscriptionId: number | null;
+  subscriptionId!: number | null;
 
   @Column("decimal", {
     name: "amount",
@@ -16,10 +16,10 @@ export class SubscriptionPayments {
     precision: 10,
     scale: 2,
   })
-  amount: string | null;
+  amount!: string | null;
 
   @Column("datetime", { name: "payment_date", nullable: true })
-  paymentDate: Date | null;
+  paymentDate!: Date | null;
 
   @ManyToOne(
     () => Subscriptions,
@@ -29,5 +29,5 @@ export class SubscriptionPayments {
   @JoinColumn([
     { name: "subscription_id", referencedColumnName: "subscriptionId" },
   ])
-  subscription: Subscriptions;
+  subscription!: Subscriptions;
 }

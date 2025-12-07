@@ -14,30 +14,30 @@ import { Menus } from "./Menus";
 @Entity("menu_option_groups", { schema: "qscome" })
 export class MenuOptionGroups {
   @PrimaryGeneratedColumn({ type: "int", name: "group_id" })
-  groupId: number;
+  groupId!: number;
 
   @Column("int", { name: "menu_id" })
-  menuId: number;
+  menuId!: number;
 
   @Column("varchar", { name: "title", length: 120 })
-  title: string;
+  title!: string;
 
   @Column("int", { name: "min_select", nullable: true, default: () => "'0'" })
-  minSelect: number | null;
+  minSelect!: number | null;
 
   @Column("int", { name: "max_select", nullable: true, default: () => "'0'" })
-  maxSelect: number | null;
+  maxSelect!: number | null;
 
   @OneToMany(
     () => MenuOptionChoices,
     (menuOptionChoices) => menuOptionChoices.group
   )
-  menuOptionChoices: MenuOptionChoices[];
+  menuOptionChoices!: MenuOptionChoices[];
 
   @ManyToOne(() => Menus, (menus) => menus.menuOptionGroups, {
     onDelete: "RESTRICT",
     onUpdate: "RESTRICT",
   })
   @JoinColumn([{ name: "menu_id", referencedColumnName: "menuId" }])
-  menu: Menus;
+  menu!: Menus;
 }

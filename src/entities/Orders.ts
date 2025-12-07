@@ -24,33 +24,33 @@ import { Payments } from "./Payments";
 @Entity("orders", { schema: "qscome" })
 export class Orders {
   @Column("int", { primary: true, name: "order_id" })
-  orderId: number;
+  orderId!: number;
 
   @Column("int", { name: "user_id", nullable: true })
-  userId: number | null;
+  userId!: number | null;
 
   @Column("int", { name: "business_id", nullable: true })
-  businessId: number | null;
+  businessId!: number | null;
 
   @Column("datetime", { name: "order_date", nullable: true })
-  orderDate: Date | null;
+  orderDate!: Date | null;
 
   @Column("datetime", {
     name: "created_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  createdAt: Date | null;
+  createdAt!: Date | null;
 
   @Column("datetime", {
     name: "updated_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  updatedAt: Date | null;
+  updatedAt!: Date | null;
 
   @Column("int", { name: "delivery_id", nullable: true })
-  deliveryId: number | null;
+  deliveryId!: number | null;
 
   @Column("enum", {
     name: "delivery_status",
@@ -58,7 +58,7 @@ export class Orders {
     enum: ["unassigned", "assigned", "on_route", "delivered"],
     default: () => "'unassigned'",
   })
-  deliveryStatus: "unassigned" | "assigned" | "on_route" | "delivered" | null;
+  deliveryStatus!: "unassigned" | "assigned" | "on_route" | "delivered" | null;
 
   @Column("enum", {
     name: "status",
@@ -74,7 +74,7 @@ export class Orders {
     ],
     default: () => "'pending'",
   })
-  status:
+  status!:
     | "pending"
     | "accepted"
     | "preparing"
@@ -91,22 +91,22 @@ export class Orders {
     scale: 2,
     default: () => "'0.00'",
   })
-  total: string | null;
+  total!: string | null;
 
   @Column("varchar", { name: "customer_name", nullable: true, length: 255 })
-  customerName: string | null;
+  customerName!: string | null;
 
   @Column("varchar", { name: "customer_phone", nullable: true, length: 30 })
-  customerPhone: string | null;
+  customerPhone!: string | null;
 
   @Column("text", { name: "delivery_address", nullable: true })
-  deliveryAddress: string | null;
+  deliveryAddress!: string | null;
 
   @Column("text", { name: "order_notes", nullable: true })
-  orderNotes: string | null;
+  orderNotes!: string | null;
 
   @Column("int", { name: "delivery_address_id", nullable: true })
-  deliveryAddressId: number | null;
+  deliveryAddressId!: number | null;
 
   @ManyToOne(
     () => DeliveryPersons,
@@ -114,7 +114,7 @@ export class Orders {
     { onDelete: "RESTRICT", onUpdate: "RESTRICT" }
   )
   @JoinColumn([{ name: "delivery_id", referencedColumnName: "deliveryId" }])
-  delivery: DeliveryPersons;
+  delivery!: DeliveryPersons;
 
   @ManyToOne(() => UserAddresses, (userAddresses) => userAddresses.orders, {
     onDelete: "RESTRICT",
@@ -123,34 +123,34 @@ export class Orders {
   @JoinColumn([
     { name: "delivery_address_id", referencedColumnName: "addressId" },
   ])
-  deliveryAddress_2: UserAddresses;
+  deliveryAddress_2!: UserAddresses;
 
   @ManyToOne(() => Users, (users) => users.orders, {
     onDelete: "RESTRICT",
     onUpdate: "RESTRICT",
   })
   @JoinColumn([{ name: "user_id", referencedColumnName: "userId" }])
-  user: Users;
+  user!: Users;
 
   @ManyToOne(() => Business, (business) => business.orders, {
     onDelete: "RESTRICT",
     onUpdate: "RESTRICT",
   })
   @JoinColumn([{ name: "business_id", referencedColumnName: "businessId" }])
-  business: Business;
+  business!: Business;
 
   @OneToMany(() => OrderDetails, (orderDetails) => orderDetails.order)
-  orderDetails: OrderDetails[];
+  orderDetails!: OrderDetails[];
 
   @OneToMany(
     () => OrderStatusHistory,
     (orderStatusHistory) => orderStatusHistory.order
   )
-  orderStatusHistories: OrderStatusHistory[];
+  orderStatusHistories!: OrderStatusHistory[];
 
   @OneToMany(() => OrderTables, (orderTables) => orderTables.order)
-  orderTables: OrderTables[];
+  orderTables!: OrderTables[];
 
   @OneToMany(() => Payments, (payments) => payments.order)
-  payments: Payments[];
+  payments!: Payments[];
 }

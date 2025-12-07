@@ -4,13 +4,13 @@ import { Orders } from "./Orders";
 @Entity("delivery_persons", { schema: "qscome" })
 export class DeliveryPersons {
   @PrimaryGeneratedColumn({ type: "int", name: "delivery_id" })
-  deliveryId: number;
+  deliveryId!: number;
 
   @Column("varchar", { name: "name", length: 255 })
-  name: string;
+  name!: string;
 
   @Column("varchar", { name: "phone", nullable: true, length: 20 })
-  phone: string | null;
+  phone!: string | null;
 
   @Column("enum", {
     name: "status",
@@ -18,7 +18,7 @@ export class DeliveryPersons {
     enum: ["available", "busy", "offline"],
     default: () => "'offline'",
   })
-  status: "available" | "busy" | "offline" | null;
+  status!: "available" | "busy" | "offline" | null;
 
   @Column("decimal", {
     name: "current_lat",
@@ -26,7 +26,7 @@ export class DeliveryPersons {
     precision: 10,
     scale: 8,
   })
-  currentLat: string | null;
+  currentLat!: string | null;
 
   @Column("decimal", {
     name: "current_lng",
@@ -34,28 +34,28 @@ export class DeliveryPersons {
     precision: 11,
     scale: 8,
   })
-  currentLng: string | null;
+  currentLng!: string | null;
 
   @Column("datetime", {
     name: "created_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  createdAt: Date | null;
+  createdAt!: Date | null;
 
   @Column("datetime", {
     name: "updated_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  updatedAt: Date | null;
+  updatedAt!: Date | null;
 
   @Column("datetime", { name: "last_online", nullable: true })
-  lastOnline: Date | null;
+  lastOnline!: Date | null;
 
   @Column("int", { name: "current_accuracy", nullable: true })
-  currentAccuracy: number | null;
+  currentAccuracy!: number | null;
 
   @OneToMany(() => Orders, (orders) => orders.delivery)
-  orders: Orders[];
+  orders!: Orders[];
 }

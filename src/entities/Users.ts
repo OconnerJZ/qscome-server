@@ -24,13 +24,13 @@ import { Votes } from "./Votes";
 @Entity("users", { schema: "qscome" })
 export class Users {
   @Column("int", { primary: true, name: "user_id" })
-  userId: number;
+  userId!: number;
 
   @Column("varchar", { name: "user_name", nullable: true, length: 255 })
-  userName: string | null;
+  userName!: string | null;
 
   @Column("varchar", { name: "email", nullable: true, length: 255 })
-  email: string | null;
+  email!: string | null;
 
   @Column("tinyint", {
     name: "is_subscribed",
@@ -38,7 +38,7 @@ export class Users {
     width: 1,
     default: () => "'0'",
   })
-  isSubscribed: boolean | null;
+  isSubscribed!: boolean | null;
 
   @Column("tinyint", {
     name: "is_payment_active",
@@ -46,13 +46,13 @@ export class Users {
     width: 1,
     default: () => "'0'",
   })
-  isPaymentActive: boolean | null;
+  isPaymentActive!: boolean | null;
 
   @Column("varchar", { name: "phone", nullable: true, length: 30 })
-  phone: string | null;
+  phone!: string | null;
 
   @Column("varchar", { name: "password_hash", nullable: true, length: 255 })
-  passwordHash: string | null;
+  passwordHash!: string | null;
 
   @Column("enum", {
     name: "auth_provider",
@@ -60,16 +60,16 @@ export class Users {
     enum: ["local", "google", "facebook"],
     default: () => "'local'",
   })
-  authProvider: "local" | "google" | "facebook" | null;
+  authProvider!: "local" | "google" | "facebook" | null;
 
   @Column("varchar", { name: "auth_provider_id", nullable: true, length: 255 })
-  authProviderId: string | null;
+  authProviderId!: string | null;
 
   @Column("varchar", { name: "avatar_url", nullable: true, length: 255 })
-  avatarUrl: string | null;
+  avatarUrl!: string | null;
 
   @Column("int", { name: "role_id", nullable: true })
-  roleId: number | null;
+  roleId!: number | null;
 
   @Column("varchar", {
     name: "locale",
@@ -77,68 +77,68 @@ export class Users {
     length: 10,
     default: () => "'''es_MX'''",
   })
-  locale: string | null;
+  locale!: string | null;
 
   @Column("datetime", {
     name: "created_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  createdAt: Date | null;
+  createdAt!: Date | null;
 
   @Column("datetime", {
     name: "updated_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  updatedAt: Date | null;
+  updatedAt!: Date | null;
 
   @OneToMany(() => AuditLogs, (auditLogs) => auditLogs.actorUser)
-  auditLogs: AuditLogs[];
+  auditLogs!: AuditLogs[];
 
   @OneToMany(() => BusinessOwners, (businessOwners) => businessOwners.user)
-  businessOwners: BusinessOwners[];
+  businessOwners!: BusinessOwners[];
 
   @OneToMany(() => Orders, (orders) => orders.user)
-  orders: Orders[];
+  orders!: Orders[];
 
   @OneToMany(
     () => OrderStatusHistory,
     (orderStatusHistory) => orderStatusHistory.changedBy2
   )
-  orderStatusHistories: OrderStatusHistory[];
+  orderStatusHistories!: OrderStatusHistory[];
 
   @OneToMany(() => Payments, (payments) => payments.user)
-  payments: Payments[];
+  payments!: Payments[];
 
   @OneToMany(() => ReviewComments, (reviewComments) => reviewComments.user)
-  reviewComments: ReviewComments[];
+  reviewComments!: ReviewComments[];
 
   @OneToMany(() => Subscriptions, (subscriptions) => subscriptions.user)
-  subscriptions: Subscriptions[];
+  subscriptions!: Subscriptions[];
 
   @ManyToOne(() => UserRoles, (userRoles) => userRoles.users, {
     onDelete: "RESTRICT",
     onUpdate: "RESTRICT",
   })
   @JoinColumn([{ name: "role_id", referencedColumnName: "roleId" }])
-  role: UserRoles;
+  role!: UserRoles;
 
   @OneToMany(() => UserAddresses, (userAddresses) => userAddresses.user)
-  userAddresses: UserAddresses[];
+  userAddresses!: UserAddresses[];
 
   @OneToMany(
     () => UserNotifications,
     (userNotifications) => userNotifications.user
   )
-  userNotifications: UserNotifications[];
+  userNotifications!: UserNotifications[];
 
   @OneToMany(() => UserSessions, (userSessions) => userSessions.user)
-  userSessions: UserSessions[];
+  userSessions!: UserSessions[];
 
   @OneToMany(() => UserWallets, (userWallets) => userWallets.user)
-  userWallets: UserWallets[];
+  userWallets!: UserWallets[];
 
   @OneToMany(() => Votes, (votes) => votes.user)
-  votes: Votes[];
+  votes!: Votes[];
 }

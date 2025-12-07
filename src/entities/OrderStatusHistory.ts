@@ -14,38 +14,38 @@ import { Users } from "./Users";
 @Entity("order_status_history", { schema: "qscome" })
 export class OrderStatusHistory {
   @PrimaryGeneratedColumn({ type: "int", name: "history_id" })
-  historyId: number;
+  historyId!: number;
 
   @Column("int", { name: "order_id" })
-  orderId: number;
+  orderId!: number;
 
   @Column("varchar", { name: "status", length: 50 })
-  status: string;
+  status!: string;
 
   @Column("text", { name: "note", nullable: true })
-  note: string | null;
+  not!: string | null;
 
   @Column("int", { name: "changed_by", nullable: true })
-  changedBy: number | null;
+  changedBy!: number | null;
 
   @Column("datetime", {
     name: "created_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  createdAt: Date | null;
+  createdAt!: Date | null;
 
   @ManyToOne(() => Orders, (orders) => orders.orderStatusHistories, {
     onDelete: "CASCADE",
     onUpdate: "RESTRICT",
   })
   @JoinColumn([{ name: "order_id", referencedColumnName: "orderId" }])
-  order: Orders;
+  order!: Orders;
 
   @ManyToOne(() => Users, (users) => users.orderStatusHistories, {
     onDelete: "SET NULL",
     onUpdate: "RESTRICT",
   })
   @JoinColumn([{ name: "changed_by", referencedColumnName: "userId" }])
-  changedBy2: Users;
+  changedBy2!: Users;
 }

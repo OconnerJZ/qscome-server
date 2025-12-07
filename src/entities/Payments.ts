@@ -15,10 +15,10 @@ import { Refunds } from "./Refunds";
 @Entity("payments", { schema: "qscome" })
 export class Payments {
   @Column("int", { primary: true, name: "payment_id" })
-  paymentId: number;
+  paymentId!: number;
 
   @Column("int", { name: "user_id", nullable: true })
-  userId: number | null;
+  userId!: number | null;
 
   @Column("decimal", {
     name: "amount",
@@ -26,24 +26,24 @@ export class Payments {
     precision: 10,
     scale: 2,
   })
-  amount: string | null;
+  amount!: string | null;
 
   @Column("datetime", { name: "payment_date", nullable: true })
-  paymentDate: Date | null;
+  paymentDate!: Date | null;
 
   @Column("datetime", {
     name: "created_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  createdAt: Date | null;
+  createdAt!: Date | null;
 
   @Column("datetime", {
     name: "updated_at",
     nullable: true,
     default: () => "CURRENT_TIMESTAMP",
   })
-  updatedAt: Date | null;
+  updatedAt!: Date | null;
 
   @Column("enum", {
     name: "payment_method",
@@ -51,7 +51,7 @@ export class Payments {
     enum: ["card", "wallet", "cash"],
     default: () => "'card'",
   })
-  paymentMethod: "card" | "wallet" | "cash" | null;
+  paymentMethod!: "card" | "wallet" | "cash" | null;
 
   @Column("enum", {
     name: "status",
@@ -59,16 +59,16 @@ export class Payments {
     enum: ["pending", "completed", "failed"],
     default: () => "'pending'",
   })
-  status: "pending" | "completed" | "failed" | null;
+  status!: "pending" | "completed" | "failed" | null;
 
   @Column("int", { name: "order_id", nullable: true })
-  orderId: number | null;
+  orderId!: number | null;
 
   @Column("varchar", { name: "gateway_id", nullable: true, length: 255 })
-  gatewayId: string | null;
+  gatewayId!: string | null;
 
   @Column("longtext", { name: "gateway_response", nullable: true })
-  gatewayResponse: string | null;
+  gatewayResponse!: string | null;
 
   @Column("varchar", {
     name: "currency",
@@ -76,22 +76,22 @@ export class Payments {
     length: 10,
     default: () => "'MXN'",
   })
-  currency: string | null;
+  currency!: string | null;
 
   @ManyToOne(() => Orders, (orders) => orders.payments, {
     onDelete: "RESTRICT",
     onUpdate: "RESTRICT",
   })
   @JoinColumn([{ name: "order_id", referencedColumnName: "orderId" }])
-  order: Orders;
+  order!: Orders;
 
   @ManyToOne(() => Users, (users) => users.payments, {
     onDelete: "RESTRICT",
     onUpdate: "RESTRICT",
   })
   @JoinColumn([{ name: "user_id", referencedColumnName: "userId" }])
-  user: Users;
+  user!: Users;
 
   @OneToMany(() => Refunds, (refunds) => refunds.payment)
-  refunds: Refunds[];
+  refunds!: Refunds[];
 }

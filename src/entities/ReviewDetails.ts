@@ -5,16 +5,16 @@ import { ReviewComments } from "./ReviewComments";
 @Entity("review_details", { schema: "qscome" })
 export class ReviewDetails {
   @Column("int", { primary: true, name: "review_detail_id" })
-  reviewDetailId: number;
+  reviewDetailId!: number;
 
   @Column("int", { name: "comment_id", nullable: true })
-  commentId: number | null;
+  commentId!: number | null;
 
   @Column("text", { name: "pros", nullable: true })
-  pros: string | null;
+  pros!: string | null;
 
   @Column("text", { name: "cons", nullable: true })
-  cons: string | null;
+  cons!: string | null;
 
   @ManyToOne(
     () => ReviewComments,
@@ -22,5 +22,5 @@ export class ReviewDetails {
     { onDelete: "RESTRICT", onUpdate: "RESTRICT" }
   )
   @JoinColumn([{ name: "comment_id", referencedColumnName: "commentId" }])
-  comment: ReviewComments;
+  comment!: ReviewComments;
 }
