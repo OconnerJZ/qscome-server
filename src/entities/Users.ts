@@ -5,6 +5,7 @@ import {
   JoinColumn,
   ManyToOne,
   OneToMany,
+  PrimaryGeneratedColumn
 } from "typeorm";
 import { AuditLogs } from "./AuditLogs";
 import { BusinessOwners } from "./BusinessOwners";
@@ -23,7 +24,7 @@ import { Votes } from "./Votes";
 @Index("fk_users_role", ["roleId"], {})
 @Entity("users", { schema: "qscome" })
 export class Users {
-  @Column("int", { primary: true, name: "user_id" })
+  @PrimaryGeneratedColumn({ type: "int", name: "user_id" })
   userId!: number;
 
   @Column("varchar", { name: "user_name", nullable: true, length: 255 })

@@ -2,12 +2,14 @@ import { Request, Response } from "express";
 import { AppDataSource } from "../utils/db";
 import { Users } from "../entities/Users";
 import { UserRoles } from "../entities/UserRoles";
+import { OAuth2Client } from "google-auth-library";
 import * as bcrypt from "bcrypt";
 import * as jwt from "jsonwebtoken";
 
 export class AuthController {
   private userRepo = AppDataSource.getRepository(Users);
   private roleRepo = AppDataSource.getRepository(UserRoles);
+  client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
   // POST /api/auth/register
   async register(req: Request, res: Response) {
@@ -40,7 +42,6 @@ export class AuthController {
 
       // Crear usuario
       const user = this.userRepo.create({
-        userId: 1,
         userName: user_name,
         email,
         passwordHash,
@@ -92,7 +93,6 @@ export class AuthController {
         where: { email },
         relations: ["role"],
       });
-
 
       if (user === null) {
         return res.status(401).json({
@@ -153,15 +153,97 @@ export class AuthController {
   // POST /api/auth/google (placeholder para OAuth)
   async googleAuth(req: Request, res: Response) {
     try {
-      // TODO: Implementar autenticación con Google OAuth
-      return res.status(501).json({
-        success: false,
-        message: "Google OAuth aún no implementado",
+      const { idToken } = req.body;
+
+      // Validar que venga el token
+      if (!idToken) {
+        return res.status(400).json({
+          success: false,
+          message: "Token de Google requerido",
+        });
+      }
+
+      // 1. Validar token con Google
+      const ticket = await this.client.verifyIdToken({
+        idToken,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+
+      const payload = ticket.getPayload();
+
+      if (!payload || !payload.email) {
+        return res.status(401).json({
+          success: false,
+          message: "Token inválido",
+        });
+      }
+
+      // Datos del usuario
+      const googleId = payload.sub;
+      const email = payload.email;
+      const name = payload.name;
+      const picture = payload.picture;
+
+      let user = await this.userRepo.findOne({
+        where: { email },
+        relations: ["role"],
+      });
+
+      if (!user) {
+        // Crear nuevo usuario
+        user = this.userRepo.create({
+          userName: name,
+          email,
+          roleId: 3,
+          authProvider: "google",
+          authProviderId: googleId,
+          avatarUrl: picture,
+        });
+
+        await this.userRepo.save(user);
+      }
+
+      // Generar token
+      const token = jwt.sign(
+        {
+          userId: user.userId,
+          email: user.email,
+          role: user.role?.roleName || "customer",
+        },
+        process.env.JWT_SECRET || "secret_key",
+        { expiresIn: process.env.JWT_EXPIRES_IN || "7d" } as jwt.SignOptions
+      );
+
+      return res.json({
+        success: true,
+        message: "Login exitoso",
+        data: {
+          user: {
+            id: user.userId,
+            name: user.userName,
+            email: user.email,
+            avatar: user.avatarUrl,
+            role: user.role?.roleName || "customer",
+            provider: user.authProvider,
+          },
+          token,
+        },
       });
     } catch (error: any) {
+      console.error("Error en Google Auth:", error);
+
+      // Manejo específico de errores de Google
+      if (error.message?.includes("Token")) {
+        return res.status(401).json({
+          success: false,
+          message: "Token de Google inválido o expirado",
+        });
+      }
       return res.status(500).json({
         success: false,
-        message: error.message,
+        message: "Error en autenticación con Google",
+        error:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
       });
     }
   }
