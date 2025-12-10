@@ -1,10 +1,17 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne } from "typeorm";
+import {
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from "typeorm";
 import { Business } from "./Business";
 
 @Index("business_id", ["businessId"], {})
 @Entity("locations", { schema: "qscome" })
 export class Locations {
-  @Column("int", { primary: true, name: "location_id" })
+  @PrimaryGeneratedColumn({ type: "int", name: "location_id" })
   locationId!: number;
 
   @Column("int", { name: "business_id", nullable: true })

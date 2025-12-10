@@ -1,4 +1,4 @@
-import { Column, Entity, OneToMany } from "typeorm";
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { BusinessDeliverySettings } from "./BusinessDeliverySettings";
 import { BusinessFoodTypes } from "./BusinessFoodTypes";
 import { BusinessOwners } from "./BusinessOwners";
@@ -11,10 +11,11 @@ import { Orders } from "./Orders";
 import { Promotions } from "./Promotions";
 import { ReviewComments } from "./ReviewComments";
 import { Tables } from "./Tables";
+import { BusinessSchedule } from "./BusinessSchedule";
 
 @Entity("business", { schema: "qscome" })
 export class Business {
-  @Column("int", { primary: true, name: "business_id" })
+  @PrimaryGeneratedColumn({ type: "int", name: "business_id" })
   businessId!: number;
 
   @Column("varchar", { name: "business_name", nullable: true, length: 255 })
@@ -51,6 +52,14 @@ export class Business {
 
   @Column("int", { name: "estimated_delivery_min", nullable: true })
   estimatedDeliveryMin!: number | null;
+
+  @Column("tinyint", {
+    name: "has_delivery",
+    nullable: true,
+    width: 1,
+    default: () => "'0'",
+  })
+  hasDelivery!: boolean | null;
 
   @Column("tinyint", {
     name: "is_open",
@@ -94,6 +103,12 @@ export class Business {
 
   @OneToMany(() => BusinessPhotos, (businessPhotos) => businessPhotos.business)
   businessPhotos!: BusinessPhotos[];
+
+  @OneToMany(
+    () => BusinessSchedule,
+    (businessSchedule) => businessSchedule.business
+  )
+  businessSchedules!: BusinessSchedule[];
 
   @OneToMany(
     () => GlobalVirtualAssistants,

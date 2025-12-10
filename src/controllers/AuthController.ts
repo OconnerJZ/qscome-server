@@ -7,14 +7,14 @@ import * as bcrypt from "bcrypt";
 import * as jwt from "jsonwebtoken";
 
 export class AuthController {
-  private userRepo = AppDataSource.getRepository(Users);
-  private roleRepo = AppDataSource.getRepository(UserRoles);
+  private readonly userRepo = AppDataSource.getRepository(Users);
+  private readonly roleRepo = AppDataSource.getRepository(UserRoles);
   client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
   // POST /api/auth/register
   async register(req: Request, res: Response) {
     try {
-      const { user_name, email, password, phone, role } = req.body;
+      const { user_name, email, password, phone, role, isBusiness } = req.body;
 
       // Verificar si el usuario ya existe
       const existingUser = await this.userRepo.findOne({ where: { email } });
@@ -25,9 +25,10 @@ export class AuthController {
         });
       }
 
+      const auxRole = isBusiness ? "owner" : role;
       // Obtener rol (por defecto 'customer')
       const userRole = await this.roleRepo.findOne({
-        where: { roleName: role || "customer" },
+        where: { roleName: auxRole || "customer" },
       });
 
       if (!userRole) {
@@ -153,7 +154,7 @@ export class AuthController {
   // POST /api/auth/google (placeholder para OAuth)
   async googleAuth(req: Request, res: Response) {
     try {
-      const { idToken } = req.body;
+      const { idToken, isBusiness } = req.body;
 
       // Validar que venga el token
       if (!idToken) {
@@ -190,11 +191,20 @@ export class AuthController {
       });
 
       if (!user) {
-        // Crear nuevo usuario
+        const auxRole = isBusiness ? "owner" : "customer";
+        const userRole = await this.roleRepo.findOne({
+          where: { roleName: auxRole || "customer" },
+        });
+        if (!userRole) {
+          return res.status(400).json({
+            success: false,
+            message: "Rol inválido",
+          });
+        }
         user = this.userRepo.create({
           userName: name,
           email,
-          roleId: 3,
+          roleId: userRole.roleId,
           authProvider: "google",
           authProviderId: googleId,
           avatarUrl: picture,

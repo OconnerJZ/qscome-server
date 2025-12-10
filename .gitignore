@@ -6,10 +6,12 @@ package-lock.json
 .env
 .env.local
 .env.*.local
+.env.*
 
 # Build output
 dist/
 build/
+uploads/
 
 # Logs
 npm-debug.log*
