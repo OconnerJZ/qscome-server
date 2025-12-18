@@ -5,14 +5,15 @@ import { PaymentController } from "../controllers/PaymentController";
 const router = Router();
 const paymentController = new PaymentController();
 
-router.post("/payments", 
-    authenticate,
-    (req: Request, res: Response) => paymentController.create(req, res)
+router.post("/", 
+  authenticate,
+  (req: Request, res: Response) => paymentController.create(req, res)
 );
 
-router.get("/payments/:id/verify", 
-    authenticate,
-    (req: Request, res: Response) => paymentController.verify(req, res)
+router.get("/:id/verify", 
+  authenticate,
+  (req: Request, res: Response) => paymentController.verify(req, res)
 );
+
 
 export default router;

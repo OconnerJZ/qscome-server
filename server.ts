@@ -1,3 +1,4 @@
+// server.ts - VERSIÓN ACTUALIZADA
 import "reflect-metadata";
 import express from "express";
 import path from "path";
@@ -14,7 +15,7 @@ import orderRoutes from "./src/routes/orderRoutes";
 import paymentRoutes from "./src/routes/paymentRoutes";
 import uploadRoutes from "./src/routes/uploadRoutes";
 import catalogRoutes from "./src/routes/catalogRoutes";
-import { rootPath } from "./src/utils/rootPath";
+import statsRoutes from "./src/routes/statsRoutes"; // NUEVO
 
 dotenv.config({ debug: false });
 
@@ -29,7 +30,6 @@ app.use(
 );
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-
 
 const projectRoot = path.resolve(__dirname, '.'); 
 const uploadsPath = path.join(projectRoot, 'uploads');
@@ -54,16 +54,17 @@ app.get("/health", (req, res) => {
   });
 });
 
-
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/business", businessRoutes);
 app.use("/api/menus", menuRoutes);
 app.use("/api/orders", orderRoutes);
-app.use("/api/payments", paymentRoutes);
+app.use("/api/payments", paymentRoutes); // RUTA CORREGIDA
 app.use("/api/upload", uploadRoutes);
 app.use("/api/catalogs", catalogRoutes);
+app.use("/api/stats", statsRoutes); // NUEVO
+
 // Error handler (debe ir al final)
 app.use(errorHandler);
 
@@ -97,6 +98,7 @@ AppDataSource.initialize()
       console.log("   POST   /api/payments");
       console.log("   POST   /api/upload/image");
       console.log("   GET    /api/catalogs/food-types");
+      console.log("   GET    /api/stats/business/:businessId"); // NUEVO
     });
   })
   .catch((error) => {

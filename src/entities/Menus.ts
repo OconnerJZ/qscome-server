@@ -5,6 +5,7 @@ import {
   JoinColumn,
   ManyToOne,
   OneToMany,
+  PrimaryGeneratedColumn,
 } from "typeorm";
 import { Business } from "./Business";
 import { MenuOptions } from "./MenuOptions";
@@ -14,8 +15,8 @@ import { OrderDetails } from "./OrderDetails";
 @Index("business_id", ["businessId"], {})
 @Entity("menus", { schema: "qscome" })
 export class Menus {
-  @Column("int", { primary: true, name: "menu_id" })
-  menuId!: number;
+  @PrimaryGeneratedColumn({ type: "int", name: "menu_id" })
+    menuId!: number;
 
   @Column("int", { name: "business_id", nullable: true })
   businessId!: number | null;

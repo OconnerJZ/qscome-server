@@ -172,7 +172,14 @@ export class AuthController {
 
       const payload = ticket.getPayload();
 
-      if (!payload || !payload.email) {
+      if (
+        payload?.iss !== "accounts.google.com" &&
+        payload?.iss !== "https://accounts.google.com"
+      ) {
+        throw new Error("Invalid issuer");
+      }
+
+      if (!payload || !payload?.email) {
         return res.status(401).json({
           success: false,
           message: "Token inválido",
