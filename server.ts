@@ -46,12 +46,28 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/health", (req, res) => {
-  res.json({
-    status: "OK",
-    database: AppDataSource.isInitialized ? "connected" : "disconnected",
-    timestamp: new Date().toISOString(),
-  });
+app.get("/health", async (req, res) => {
+  try {
+
+    await Promise.race([
+      AppDataSource.query('SELECT 1'),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('timeout')), 3000)
+      )
+    ]);
+    
+    res.json({
+      status: "OK",
+      database: "healthy",
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: "ERROR",
+      database: "unhealthy",
+      error: error
+    });
+  }
 });
 
 // API Routes

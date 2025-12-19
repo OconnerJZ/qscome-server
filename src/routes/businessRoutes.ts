@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { BusinessController } from "../controllers/BusinessController ";
+import { BusinessController } from "../controllers/BusinessController";
 import { authenticate } from "../middlewares/authMiddleware";
 import { authorize } from "../middlewares/roleMiddleware";
 import { validateDto } from "../middlewares/validateDto";

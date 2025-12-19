@@ -5,6 +5,7 @@ import {
   JoinColumn,
   ManyToOne,
   OneToMany,
+  PrimaryGeneratedColumn,
 } from "typeorm";
 import { DeliveryPersons } from "./DeliveryPersons";
 import { UserAddresses } from "./UserAddresses";
@@ -23,7 +24,7 @@ import { Payments } from "./Payments";
 @Index("idx_orders_user", ["userId"], {})
 @Entity("orders", { schema: "qscome" })
 export class Orders {
-  @Column("int", { primary: true, name: "order_id" })
+  @PrimaryGeneratedColumn({ type: "int", name: "order_id" })
   orderId!: number;
 
   @Column("int", { name: "user_id", nullable: true })

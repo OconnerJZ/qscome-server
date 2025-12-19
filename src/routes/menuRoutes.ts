@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { MenuController } from "../controllers/MenuController ";
+import { MenuController } from "../controllers/MenuController";
 import { authenticate } from "../middlewares/authMiddleware";
 import { authorize } from "../middlewares/roleMiddleware";
 import { createMenuValidation } from "../validators/menuValidators";
