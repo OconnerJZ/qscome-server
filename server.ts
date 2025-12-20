@@ -1,7 +1,8 @@
 // server.ts - VERSIÓN ACTUALIZADA
 import "reflect-metadata";
 import express from "express";
-import path from "path";
+import http from "node:http";
+import path from "node:path";
 import bodyParser from "body-parser";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -15,11 +16,14 @@ import orderRoutes from "./src/routes/orderRoutes";
 import paymentRoutes from "./src/routes/paymentRoutes";
 import uploadRoutes from "./src/routes/uploadRoutes";
 import catalogRoutes from "./src/routes/catalogRoutes";
-import statsRoutes from "./src/routes/statsRoutes"; // NUEVO
+import statsRoutes from "./src/routes/statsRoutes";
+import { initializeSocket } from "./src/utils/socket";
 
 dotenv.config({ debug: false });
 
 const app = express();
+const httpServer = http.createServer(app);
+initializeSocket(httpServer);
 
 // Middlewares globales
 app.use(
@@ -31,11 +35,11 @@ app.use(
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-const projectRoot = path.resolve(__dirname, '.'); 
-const uploadsPath = path.join(projectRoot, 'uploads');
+const projectRoot = path.resolve(__dirname, ".");
+const uploadsPath = path.join(projectRoot, "uploads");
 
 // Servir carpeta uploads
-app.use('/uploads', express.static(uploadsPath));
+app.use("/uploads", express.static(uploadsPath));
 
 // Health check
 app.get("/", (req, res) => {
@@ -48,24 +52,23 @@ app.get("/", (req, res) => {
 
 app.get("/health", async (req, res) => {
   try {
-
     await Promise.race([
-      AppDataSource.query('SELECT 1'),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('timeout')), 3000)
-      )
+      AppDataSource.query("SELECT 1"),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), 3000)
+      ),
     ]);
-    
+
     res.json({
       status: "OK",
       database: "healthy",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     res.status(503).json({
       status: "ERROR",
       database: "unhealthy",
-      error: error
+      error: error,
     });
   }
 });
@@ -86,7 +89,7 @@ app.use(errorHandler);
 
 // 404 handler
 app.use((req, res) => {
-   res.status(404).json({ message: "Ruta no encontrada" });
+  res.status(404).json({ message: "Ruta no encontrada" });
 });
 
 const PORT = process.env.PORT || 3000;
@@ -97,8 +100,9 @@ AppDataSource.initialize()
     console.log("✅ Conexión a DB establecida");
     console.log(`📊 Base de datos: ${process.env.DB_NAME}`);
 
-    app.listen(PORT, () => {
+    httpServer.listen(PORT, () => {
       console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+      console.log(`🔌 Socket.IO inicializado`);
       console.log(`🌍 Entorno: ${process.env.NODE_ENV || "development"}`);
       console.log("\n📡 Endpoints disponibles:");
       console.log("   POST   /api/auth/register");

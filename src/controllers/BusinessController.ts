@@ -30,6 +30,7 @@ export class BusinessController {
           "locations",
           "businessFoodTypes",
           "businessFoodTypes.foodType",
+          "menus"
         ],
         take: 50,
       });
@@ -84,7 +85,8 @@ export class BusinessController {
           "businessSchedules",
           "businessDeliverySettings",
           "businessPaymentMethods",
-          "businessPhotos"
+          "businessPhotos",
+          "menus"
         ],
       });
 
@@ -589,4 +591,6 @@ export class BusinessController {
       });
     }
   }
+
 }
+
