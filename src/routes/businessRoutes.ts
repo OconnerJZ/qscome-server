@@ -24,7 +24,6 @@ router.get("/:id/menu",
 router.post("/", 
   authenticate,
   authorize("admin", "owner", "customer"),
-  sanitizeInput,
   validateDto(CreateBusinessDto),
   (req: Request, res: Response) => businessController.create(req, res)
 );
@@ -32,7 +31,6 @@ router.post("/",
 router.put("/:id", 
   authenticate,
   authorize("admin", "owner"),
-  sanitizeInput,
   (req: Request, res: Response) => businessController.update(req, res)
 );
 

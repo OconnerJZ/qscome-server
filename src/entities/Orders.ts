@@ -94,6 +94,14 @@ export class Orders {
   })
   total!: string | null;
 
+  @Column("enum", {
+    name: "order_type",
+    nullable: false,
+    enum: ["pickup", "delivery", "on_route", "delivered"],
+    default: () => "'pickup'",
+  })
+  orderType!: "pickup" | "delivery";
+
   @Column("varchar", { name: "customer_name", nullable: true, length: 255 })
   customerName!: string | null;
 

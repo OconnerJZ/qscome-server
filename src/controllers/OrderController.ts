@@ -136,14 +136,6 @@ export class OrderController {
         notes,
       } = req.body;
 
-      // Validar items
-      if (!items || items.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: "La orden debe tener al menos un item",
-        });
-      }
-
       // Crear orden
       const order = this.orderRepo.create({
         userId,
@@ -219,6 +211,7 @@ export class OrderController {
         "preparing",
         "ready",
         "in_delivery",
+        "ready_for_pickup",
         "completed",
         "cancelled",
       ];
@@ -253,10 +246,10 @@ export class OrderController {
       });
       await this.historyRepo.save(history);
 
-      emitOrderStatusUpdate(order.userId, {
+      emitOrderStatusUpdate(order.userId!, {
         orderId: order.orderId,
         status: order.status,
-        statusLabel: this.getStatusLabel(order.status),
+        statusLabel: this.getStatusLabel(order.status!),
         timestamp: new Date().toISOString(),
       });
 
@@ -274,17 +267,18 @@ export class OrderController {
   }
 
   private getStatusLabel(status: string): string {
-    const labels: { [key: string]: string } = {
-      pending: "Pendiente",
-      accepted: "Aceptada",
-      preparing: "Preparando",
-      ready: "Lista",
-      in_delivery: "En Camino",
-      completed: "Completada",
-      cancelled: "Cancelada",
-    };
-    return labels[status] || status;
-  }
+  const labels: { [key: string]: string } = {
+    'pending': 'Pendiente',
+    'accepted': 'Aceptada',
+    'preparing': 'Preparando',
+    'ready': 'Lista',
+    'in_delivery': 'En Camino',
+    'ready_for_pickup': 'Lista para recoger',
+    'completed': 'Completada',
+    'cancelled': 'Cancelada'
+  };
+  return labels[status] || status;
+}
 
   // Método auxiliar para formatear orden
   private formatOrder(order: Orders) {
