@@ -291,6 +291,7 @@ export class OrderController {
       customerPhone: order.customerPhone,
       customerEmail: order.user?.email,
       status: order.status,
+      orderType: order.orderType,
       deliveryStatus: order.deliveryStatus,
       deliveryAddress: order.deliveryAddress,
       notes: order.orderNotes,

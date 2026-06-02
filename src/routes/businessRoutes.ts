@@ -9,29 +9,35 @@ import { CreateBusinessDto } from "../dtos/business.dto";
 const router = Router();
 const businessController = new BusinessController();
 
-router.get("/", 
-  (req: Request, res: Response) => businessController.getAll(req, res)
+router.get("/", (req: Request, res: Response) =>
+  businessController.getAll(req, res),
 );
 
-router.get("/:id", 
-  (req: Request, res: Response) => businessController.getById(req, res)
+router.get("/:id", (req: Request, res: Response) =>
+  businessController.getById(req, res),
 );
 
-router.get("/:id/menu", 
-  (req: Request, res: Response) => businessController.getMenu(req, res)
+router.get("/owner/:ownerId", (req: Request, res: Response) =>
+  businessController.getByOwner(req, res),
 );
 
-router.post("/", 
+router.get("/:id/menu", (req: Request, res: Response) =>
+  businessController.getMenu(req, res),
+);
+
+router.post(
+  "/",
   authenticate,
   authorize("admin", "owner", "customer"),
   validateDto(CreateBusinessDto),
-  (req: Request, res: Response) => businessController.create(req, res)
+  (req: Request, res: Response) => businessController.create(req, res),
 );
 
-router.put("/:id", 
+router.put(
+  "/:id",
   authenticate,
   authorize("admin", "owner"),
-  (req: Request, res: Response) => businessController.update(req, res)
+  (req: Request, res: Response) => businessController.update(req, res),
 );
 
 export default router;

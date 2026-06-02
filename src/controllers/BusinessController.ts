@@ -16,10 +16,15 @@ export class BusinessController {
   private readonly menuRepo = AppDataSource.getRepository(Menus);
   private readonly locationRepo = AppDataSource.getRepository(Locations);
   private readonly scheduleRepo = AppDataSource.getRepository(BusinessSchedule);
-  private readonly bFoodTypesRepos = AppDataSource.getRepository(BusinessFoodTypes);
+  private readonly bFoodTypesRepos =
+    AppDataSource.getRepository(BusinessFoodTypes);
   private readonly bOwnerRepo = AppDataSource.getRepository(BusinessOwners);
-  private readonly bDeliverySett = AppDataSource.getRepository(BusinessDeliverySettings);
-  private readonly bPaymentMethod = AppDataSource.getRepository(BusinessPaymentMethods);
+  private readonly bDeliverySett = AppDataSource.getRepository(
+    BusinessDeliverySettings,
+  );
+  private readonly bPaymentMethod = AppDataSource.getRepository(
+    BusinessPaymentMethods,
+  );
   private readonly bPhotosRepo = AppDataSource.getRepository(BusinessPhotos);
 
   // GET /api/business
@@ -30,7 +35,7 @@ export class BusinessController {
           "locations",
           "businessFoodTypes",
           "businessFoodTypes.foodType",
-          "menus"
+          "menus",
         ],
         take: 50,
       });
@@ -86,7 +91,7 @@ export class BusinessController {
           "businessDeliverySettings",
           "businessPaymentMethods",
           "businessPhotos",
-          "menus"
+          "menus",
         ],
       });
 
@@ -113,16 +118,74 @@ export class BusinessController {
           estimatedDeliveryMin: business.estimatedDeliveryMin,
           locations: business.locations,
           schedules: business.businessSchedules,
-          foodTypes: business.businessFoodTypes?.map(ft => ({
+          foodTypes: business.businessFoodTypes?.map((ft) => ({
             id: ft.foodTypeId,
-            name: ft.foodType?.typeName
+            name: ft.foodType?.typeName,
           })),
           deliverySettings: business.businessDeliverySettings?.[0] || null,
           paymentMethods: business.businessPaymentMethods,
           photos: business.businessPhotos,
           createdAt: business.createdAt,
-          updatedAt: business.updatedAt
+          updatedAt: business.updatedAt,
         },
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
+  // GET /api/business/owner/:ownerId
+  async getByOwner(req: Request, res: Response) {
+    try {
+      const { ownerId } = req.params;
+
+      const businesses = await this.bOwnerRepo.find({
+        where: {
+          userId: Number.parseInt(ownerId),
+        },
+        relations: [
+          "business",
+          "business.locations",
+          "business.businessFoodTypes",
+          "business.businessFoodTypes.foodType",
+          "business.menus",
+        ],
+      });
+
+      if (!businesses.length) {
+        return res.status(404).json({
+          success: false,
+          message: "No se encontraron negocios para este owner",
+        });
+      }
+
+      const formatted = businesses.map((bo) => {
+        const b = bo.business;
+
+        return {
+          id: b.businessId,
+          title: b.businessName,
+          urlImage: b.logoUrl || b.bannerUrl,
+          isOpen: b.isOpen,
+          hasDelivery: b.hasDelivery,
+          prepTimeMin: b.prepTimeMin,
+          estimatedDeliveryMin: b.estimatedDeliveryMin,
+          locations: b.locations,
+          tags:
+            b.businessFoodTypes?.map((ft) => ({
+              label: ft.foodType?.typeName,
+              color: "warning",
+            })) || [],
+          createdAt: b.createdAt,
+        };
+      });
+
+      return res.json({
+        success: true,
+        data: formatted,
       });
     } catch (error: any) {
       return res.status(500).json({
@@ -136,16 +199,16 @@ export class BusinessController {
   async update(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { 
-        business_name, 
-        phone, 
-        email, 
+      const {
+        business_name,
+        phone,
+        email,
         logo_url,
         banner_url,
         is_open,
         has_delivery,
         prep_time_min,
-        estimated_delivery_min
+        estimated_delivery_min,
       } = req.body;
 
       const business = await this.businessRepo.findOne({
@@ -166,9 +229,11 @@ export class BusinessController {
       if (logo_url) business.logoUrl = logo_url;
       if (banner_url) business.bannerUrl = banner_url;
       if (typeof is_open === "boolean") business.isOpen = is_open;
-      if (typeof has_delivery === "boolean") business.hasDelivery = has_delivery;
+      if (typeof has_delivery === "boolean")
+        business.hasDelivery = has_delivery;
       if (prep_time_min) business.prepTimeMin = prep_time_min;
-      if (estimated_delivery_min) business.estimatedDeliveryMin = estimated_delivery_min;
+      if (estimated_delivery_min)
+        business.estimatedDeliveryMin = estimated_delivery_min;
 
       await this.businessRepo.save(business);
 
@@ -193,7 +258,7 @@ export class BusinessController {
 
       // Buscar ubicación existente
       let location = await this.locationRepo.findOne({
-        where: { businessId: Number.parseInt(id) }
+        where: { businessId: Number.parseInt(id) },
       });
 
       if (location) {
@@ -211,7 +276,7 @@ export class BusinessController {
           city,
           postalCode: postal_code,
           latitude: latitude?.toString(),
-          longitude: longitude?.toString()
+          longitude: longitude?.toString(),
         });
       }
 
@@ -220,7 +285,7 @@ export class BusinessController {
       return res.json({
         success: true,
         message: "Ubicación actualizada",
-        data: location
+        data: location,
       });
     } catch (error: any) {
       return res.status(500).json({
@@ -239,7 +304,7 @@ export class BusinessController {
       if (!Array.isArray(schedules)) {
         return res.status(400).json({
           success: false,
-          message: "schedules debe ser un array"
+          message: "schedules debe ser un array",
         });
       }
 
@@ -247,15 +312,15 @@ export class BusinessController {
       await this.scheduleRepo.delete({ businessId: Number.parseInt(id) });
 
       // Crear nuevos horarios
-      const newSchedules = schedules.map(sched => 
+      const newSchedules = schedules.map((sched) =>
         this.scheduleRepo.create({
           businessId: Number.parseInt(id),
           day: sched.day,
           isClosed: sched.isClosed,
           opened: sched.opened,
           closed: sched.closed,
-          isHoliday: sched.isHoliday || false
-        })
+          isHoliday: sched.isHoliday || false,
+        }),
       );
 
       await this.scheduleRepo.save(newSchedules);
@@ -263,7 +328,7 @@ export class BusinessController {
       return res.json({
         success: true,
         message: "Horarios actualizados",
-        data: newSchedules
+        data: newSchedules,
       });
     } catch (error: any) {
       return res.status(500).json({
@@ -277,25 +342,28 @@ export class BusinessController {
   async updateDeliverySettings(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { 
-        delivery_radius_km, 
-        delivery_fee, 
+      const {
+        delivery_radius_km,
+        delivery_fee,
         min_order_amount,
         estimated_time_min,
-        use_own_delivery
+        use_own_delivery,
       } = req.body;
 
       let settings = await this.bDeliverySett.findOne({
-        where: { businessId: Number.parseInt(id) }
+        where: { businessId: Number.parseInt(id) },
       });
 
       if (settings) {
         // Actualizar existente
-        if (delivery_radius_km) settings.deliveryRadiusKm = delivery_radius_km.toString();
+        if (delivery_radius_km)
+          settings.deliveryRadiusKm = delivery_radius_km.toString();
         if (delivery_fee) settings.deliveryFee = delivery_fee.toString();
-        if (min_order_amount) settings.minOrderAmount = min_order_amount.toString();
+        if (min_order_amount)
+          settings.minOrderAmount = min_order_amount.toString();
         if (estimated_time_min) settings.estimatedTimeMin = estimated_time_min;
-        if (typeof use_own_delivery === 'boolean') settings.useOwnDelivery = use_own_delivery;
+        if (typeof use_own_delivery === "boolean")
+          settings.useOwnDelivery = use_own_delivery;
       } else {
         // Crear nuevo
         settings = this.bDeliverySett.create({
@@ -304,7 +372,7 @@ export class BusinessController {
           deliveryFee: delivery_fee?.toString() || "0.00",
           minOrderAmount: min_order_amount?.toString() || "0.00",
           estimatedTimeMin: estimated_time_min || 30,
-          useOwnDelivery: use_own_delivery || false
+          useOwnDelivery: use_own_delivery || false,
         });
       }
 
@@ -313,7 +381,7 @@ export class BusinessController {
       return res.json({
         success: true,
         message: "Configuración de delivery actualizada",
-        data: settings
+        data: settings,
       });
     } catch (error: any) {
       return res.status(500).json({
@@ -332,17 +400,17 @@ export class BusinessController {
       if (!Array.isArray(payment_methods)) {
         return res.status(400).json({
           success: false,
-          message: "payment_methods debe ser un array"
+          message: "payment_methods debe ser un array",
         });
       }
 
       // Actualizar cada método
       for (const pm of payment_methods) {
         const existing = await this.bPaymentMethod.findOne({
-          where: { 
+          where: {
             businessId: Number.parseInt(id),
-            method: pm.method 
-          }
+            method: pm.method,
+          },
         });
 
         if (existing) {
@@ -354,13 +422,13 @@ export class BusinessController {
 
       // Obtener métodos actualizados
       const updated = await this.bPaymentMethod.find({
-        where: { businessId: Number.parseInt(id) }
+        where: { businessId: Number.parseInt(id) },
       });
 
       return res.json({
         success: true,
         message: "Métodos de pago actualizados",
-        data: updated
+        data: updated,
       });
     } catch (error: any) {
       return res.status(500).json({
@@ -379,7 +447,7 @@ export class BusinessController {
       if (!Array.isArray(food_type_ids)) {
         return res.status(400).json({
           success: false,
-          message: "food_type_ids debe ser un array"
+          message: "food_type_ids debe ser un array",
         });
       }
 
@@ -387,11 +455,11 @@ export class BusinessController {
       await this.bFoodTypesRepos.delete({ businessId: Number.parseInt(id) });
 
       // Crear nuevos
-      const newTypes = food_type_ids.map(typeId =>
+      const newTypes = food_type_ids.map((typeId) =>
         this.bFoodTypesRepos.create({
           businessId: Number.parseInt(id),
-          foodTypeId: typeId
-        })
+          foodTypeId: typeId,
+        }),
       );
 
       await this.bFoodTypesRepos.save(newTypes);
@@ -399,13 +467,13 @@ export class BusinessController {
       // Recargar con relaciones
       const updated = await this.bFoodTypesRepos.find({
         where: { businessId: Number.parseInt(id) },
-        relations: ['foodType']
+        relations: ["foodType"],
       });
 
       return res.json({
         success: true,
         message: "Tipos de comida actualizados",
-        data: updated
+        data: updated,
       });
     } catch (error: any) {
       return res.status(500).json({
@@ -423,7 +491,7 @@ export class BusinessController {
 
       const photo = this.bPhotosRepo.create({
         businessId: Number.parseInt(id),
-        photoUrl: photo_url
+        photoUrl: photo_url,
       });
 
       await this.bPhotosRepo.save(photo);
@@ -431,7 +499,7 @@ export class BusinessController {
       return res.json({
         success: true,
         message: "Foto agregada",
-        data: photo
+        data: photo,
       });
     } catch (error: any) {
       return res.status(500).json({
@@ -450,7 +518,7 @@ export class BusinessController {
 
       return res.json({
         success: true,
-        message: "Foto eliminada"
+        message: "Foto eliminada",
       });
     } catch (error: any) {
       return res.status(500).json({
@@ -461,7 +529,7 @@ export class BusinessController {
   }
 
   // Métodos existentes (getMenu, create) se mantienen igual...
-  
+
   async getMenu(req: Request, res: Response) {
     try {
       const { id } = req.params;
@@ -526,7 +594,7 @@ export class BusinessController {
         });
         await this.locationRepo.save(location);
       }
-      
+
       if (schedule) {
         await Promise.all(
           schedule.map((scheduled: object) => {
@@ -535,10 +603,10 @@ export class BusinessController {
               ...scheduled,
             });
             return this.scheduleRepo.save(sched);
-          })
+          }),
         );
       }
-      
+
       if (food_type) {
         await Promise.all(
           food_type.map((foodTypeId: number) => {
@@ -547,10 +615,10 @@ export class BusinessController {
               foodTypeId: foodTypeId,
             });
             return this.bFoodTypesRepos.save(bft);
-          })
+          }),
         );
       }
-      
+
       const deliverySet = this.bDeliverySett.create({
         businessId: business.businessId,
       });
@@ -566,7 +634,7 @@ export class BusinessController {
             isActive: m == "cash" || m == "transfer",
           });
           return this.bPaymentMethod.save(paymentMethod);
-        })
+        }),
       );
 
       const businessOwner = this.bOwnerRepo.create({
@@ -591,6 +659,4 @@ export class BusinessController {
       });
     }
   }
-
 }
-
