@@ -7,7 +7,6 @@ import { MenuService } from "../services/MenuService";
 export class MenuController {
   private readonly service = new MenuService();
 
-  // GET /api/menus
   getAll = async (_req: Request, res: Response, next: NextFunction) => {
     try {
       res.json({ success: true, data: await this.service.list() });
@@ -16,7 +15,6 @@ export class MenuController {
     }
   };
 
-  // GET /api/menus/:id
   getById = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await this.service.getById(Number.parseInt(req.params.id, 10));
@@ -26,7 +24,6 @@ export class MenuController {
     }
   };
 
-  // GET /api/menus/business/:businessId
   getByBusiness = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await this.service.getByBusiness(
@@ -38,7 +35,21 @@ export class MenuController {
     }
   };
 
-  // POST /api/menus
+  getManagedByBusiness = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const data = await this.service.getManagedByBusiness(
+        Number.parseInt(req.params.businessId, 10),
+      );
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   create = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await this.service.create(req.body);
@@ -50,7 +61,6 @@ export class MenuController {
     }
   };
 
-  // PUT /api/menus/:id
   update = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await this.service.update(
@@ -63,7 +73,6 @@ export class MenuController {
     }
   };
 
-  // DELETE /api/menus/:id
   remove = async (req: Request, res: Response, next: NextFunction) => {
     try {
       await this.service.softDelete(Number.parseInt(req.params.id, 10));
