@@ -16,7 +16,6 @@ export interface CreateOrderItem {
   id: number;
   quantity: number;
   note?: string | null;
-  // `price` puede seguir llegando desde clientes antiguos, pero se ignora.
   price?: number;
 }
 
@@ -24,7 +23,6 @@ export interface CreateOrderInput {
   userId: number;
   businessId: number;
   items: CreateOrderItem[];
-  // `total` puede seguir llegando desde clientes antiguos, pero se ignora.
   total?: number;
   orderType?: "pickup" | "delivery";
   customerName?: string;
@@ -132,7 +130,12 @@ export class OrderService {
       notes,
     } = input;
 
+    const normalizedBusinessId = Number(businessId);
+
     if (!userId) throw new HttpError(401, "Usuario no autenticado");
+    if (!Number.isInteger(normalizedBusinessId) || normalizedBusinessId < 1) {
+      throw new HttpError(400, "Negocio inválido");
+    }
     if (!items?.length) {
       throw new HttpError(400, "La orden debe contener al menos un item");
     }
@@ -162,7 +165,7 @@ export class OrderService {
         }
 
         const menu = await menuRepo.findOne({ where: { menuId: Number(item.id) } });
-        if (!menu || menu.businessId !== businessId) {
+        if (!menu || Number(menu.businessId) !== normalizedBusinessId) {
           throw new HttpError(400, `El producto ${item.id} no pertenece a este negocio`);
         }
         if (!menu.isAvailable) {
@@ -183,7 +186,7 @@ export class OrderService {
 
       const order = orderRepo.create({
         userId,
-        businessId,
+        businessId: normalizedBusinessId,
         orderType,
         customerName,
         customerPhone,
@@ -228,7 +231,7 @@ export class OrderService {
     });
 
     const formatted = formatOrder(fullOrder!);
-    emitNewOrder(businessId, formatted);
+    emitNewOrder(normalizedBusinessId, formatted);
     return formatted;
   }
 
