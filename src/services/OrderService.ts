@@ -1,12 +1,9 @@
 // src/services/OrderService.ts
-// Lógica de negocio y persistencia de órdenes. Los controllers sólo traducen
-// HTTP; toda la lógica testeable vive aquí. Lanza HttpError para errores de
-// dominio (el controller los pasa a next()).
-
 import { AppDataSource } from "../utils/db";
 import { Orders } from "../entities/Orders";
 import { OrderDetails } from "../entities/OrderDetails";
 import { OrderStatusHistory } from "../entities/OrderStatusHistory";
+import { Menus } from "../entities/Menus";
 import { HttpError } from "../utils/httpError";
 import {
   formatOrder,
@@ -18,20 +15,27 @@ import { emitNewOrder, emitOrderStatusUpdate } from "../utils/socket";
 export interface CreateOrderItem {
   id: number;
   quantity: number;
-  price: number;
   note?: string | null;
+  // `price` puede seguir llegando desde clientes antiguos, pero se ignora.
+  price?: number;
 }
 
 export interface CreateOrderInput {
   userId: number;
   businessId: number;
   items: CreateOrderItem[];
-  total: number;
+  // `total` puede seguir llegando desde clientes antiguos, pero se ignora.
+  total?: number;
   orderType?: "pickup" | "delivery";
   customerName?: string;
   customerPhone?: string;
   deliveryAddress?: string;
   notes?: string;
+}
+
+interface OrderActor {
+  userId?: number;
+  role?: string;
 }
 
 const DETAIL_RELATIONS = [
@@ -121,7 +125,6 @@ export class OrderService {
       userId,
       businessId,
       items,
-      total,
       orderType = "pickup",
       customerName,
       customerPhone,
@@ -129,6 +132,7 @@ export class OrderService {
       notes,
     } = input;
 
+    if (!userId) throw new HttpError(401, "Usuario no autenticado");
     if (!items?.length) {
       throw new HttpError(400, "La orden debe contener al menos un item");
     }
@@ -140,6 +144,30 @@ export class OrderService {
       const orderRepo = manager.getRepository(Orders);
       const detailRepo = manager.getRepository(OrderDetails);
       const historyRepo = manager.getRepository(OrderStatusHistory);
+      const menuRepo = manager.getRepository(Menus);
+
+      const pricedItems: Array<CreateOrderItem & { unitPrice: number; subtotal: number }> = [];
+      let calculatedTotal = 0;
+
+      for (const item of items) {
+        const quantity = Number(item.quantity);
+        if (!Number.isInteger(quantity) || quantity < 1) {
+          throw new HttpError(400, "Cantidad de producto inválida");
+        }
+
+        const menu = await menuRepo.findOne({ where: { menuId: Number(item.id) } });
+        if (!menu || menu.businessId !== businessId) {
+          throw new HttpError(400, `El producto ${item.id} no pertenece a este negocio`);
+        }
+        if (!menu.isAvailable) {
+          throw new HttpError(409, `${menu.itemName || "El producto"} ya no está disponible`);
+        }
+
+        const unitPrice = Number.parseFloat(menu.price || "0");
+        const subtotal = Number((unitPrice * quantity).toFixed(2));
+        calculatedTotal = Number((calculatedTotal + subtotal).toFixed(2));
+        pricedItems.push({ ...item, quantity, unitPrice, subtotal });
+      }
 
       const order = orderRepo.create({
         userId,
@@ -149,20 +177,20 @@ export class OrderService {
         customerPhone,
         deliveryAddress: orderType === "delivery" ? deliveryAddress : null,
         orderNotes: notes,
-        total: total.toString(),
+        total: calculatedTotal.toFixed(2),
         status: "pending",
         deliveryStatus: "unassigned",
         orderDate: new Date(),
       });
       await orderRepo.save(order);
 
-      for (const item of items) {
+      for (const item of pricedItems) {
         await detailRepo.save(
           detailRepo.create({
             orderId: order.orderId,
             menuId: item.id,
             quantity: item.quantity,
-            subtotal: (item.price * item.quantity).toString(),
+            subtotal: item.subtotal.toFixed(2),
             notes: item.note || null,
           }),
         );
@@ -194,7 +222,7 @@ export class OrderService {
     orderId: number,
     status: string,
     note: string | undefined,
-    changedBy?: number,
+    actor: OrderActor = {},
   ) {
     if (!isValidStatus(status)) {
       throw new HttpError(400, "Estado inválido");
@@ -202,6 +230,22 @@ export class OrderService {
 
     const order = await this.orderRepo.findOne({ where: { orderId } });
     if (!order) throw new HttpError(404, "Orden no encontrada");
+
+    const isPrivilegedRole = actor.role === "admin" || actor.role === "owner";
+    const isCustomerActor = actor.userId === order.userId && !isPrivilegedRole;
+
+    if (isCustomerActor) {
+      if (status !== "cancelled") {
+        throw new HttpError(403, "El cliente sólo puede cancelar su orden");
+      }
+      if (order.status !== "pending") {
+        throw new HttpError(
+          409,
+          "La orden ya fue aceptada y no puede cancelarse desde la aplicación",
+        );
+      }
+    }
+
     if (!canMoveToStatus(order, status)) {
       throw new HttpError(
         409,
@@ -217,16 +261,18 @@ export class OrderService {
         orderId: order.orderId,
         status,
         not: note || `Estado cambiado a ${status}`,
-        changedBy,
+        changedBy: actor.userId,
       }),
     );
 
-    emitOrderStatusUpdate(order.userId!, {
-      orderId: order.orderId,
-      status: order.status,
-      statusLabel: getStatusLabel(order.status!),
-      timestamp: new Date().toISOString(),
-    });
+    if (order.userId) {
+      emitOrderStatusUpdate(order.userId, {
+        orderId: order.orderId,
+        status: order.status,
+        statusLabel: getStatusLabel(order.status!),
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     return { orderId: order.orderId, status: order.status };
   }
