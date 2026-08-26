@@ -24,44 +24,39 @@ export interface CreateMenuInput {
 export class MenuService {
   private readonly menuRepo = AppDataSource.getRepository(Menus);
 
-  // GET /api/menus — catálogo público disponible.
   async list() {
     const menus = await this.menuRepo.find({
       relations: ["business"],
-      where: { isAvailable: true },
+      where: { isAvailable: true, isArchived: false },
     });
     return menus.map(formatMenuCard);
   }
 
-  // GET /api/menus/:id
   async getById(menuId: number) {
     const menu = await this.menuRepo.findOne({
-      where: { menuId },
+      where: { menuId, isArchived: false },
       relations: ["business", "menuOptions", "menuOptionGroups"],
     });
     if (!menu) throw new HttpError(404, "Producto no encontrado");
     return formatMenuDetail(menu);
   }
 
-  // GET /api/menus/business/:businessId — menú público, solo disponibles.
   async getByBusiness(businessId: number) {
     const menus = await this.menuRepo.find({
-      where: { businessId, isAvailable: true },
+      where: { businessId, isAvailable: true, isArchived: false },
       order: { category: "ASC", itemName: "ASC" },
     });
     return menus.map(formatBusinessMenuItem);
   }
 
-  // GET /api/menus/business/:businessId/manage — catálogo completo para operación.
   async getManagedByBusiness(businessId: number) {
     const menus = await this.menuRepo.find({
-      where: { businessId },
+      where: { businessId, isArchived: false },
       order: { category: "ASC", itemName: "ASC" },
     });
     return menus.map(formatBusinessMenuItem);
   }
 
-  // POST /api/menus
   async create(input: CreateMenuInput) {
     const menu = this.menuRepo.create({
       businessId: input.business_id,
@@ -72,14 +67,16 @@ export class MenuService {
       category: input.category?.trim() || null,
       isAvailable:
         typeof input.is_available === "boolean" ? input.is_available : true,
+      isArchived: false,
     });
     await this.menuRepo.save(menu);
     return formatMenuMini(menu);
   }
 
-  // PUT /api/menus/:id
   async update(menuId: number, body: any) {
-    const menu = await this.menuRepo.findOne({ where: { menuId } });
+    const menu = await this.menuRepo.findOne({
+      where: { menuId, isArchived: false },
+    });
     if (!menu) throw new HttpError(404, "Producto no encontrado");
 
     const { item_name, description, price, image_url, category, is_available } = body;
@@ -111,11 +108,12 @@ export class MenuService {
     return formatMenuMini(menu);
   }
 
-  // DELETE /api/menus/:id — soft delete (isAvailable = false)
+  // DELETE /api/menus/:id — archivo lógico; conserva referencias históricas.
   async softDelete(menuId: number) {
     const menu = await this.menuRepo.findOne({ where: { menuId } });
     if (!menu) throw new HttpError(404, "Producto no encontrado");
     menu.isAvailable = false;
+    menu.isArchived = true;
     await this.menuRepo.save(menu);
   }
 }
