@@ -146,7 +146,13 @@ export class OrderService {
       const historyRepo = manager.getRepository(OrderStatusHistory);
       const menuRepo = manager.getRepository(Menus);
 
-      const pricedItems: Array<CreateOrderItem & { unitPrice: number; subtotal: number }> = [];
+      const pricedItems: Array<
+        CreateOrderItem & {
+          itemName: string;
+          unitPrice: number;
+          subtotal: number;
+        }
+      > = [];
       let calculatedTotal = 0;
 
       for (const item of items) {
@@ -166,7 +172,13 @@ export class OrderService {
         const unitPrice = Number.parseFloat(menu.price || "0");
         const subtotal = Number((unitPrice * quantity).toFixed(2));
         calculatedTotal = Number((calculatedTotal + subtotal).toFixed(2));
-        pricedItems.push({ ...item, quantity, unitPrice, subtotal });
+        pricedItems.push({
+          ...item,
+          quantity,
+          itemName: menu.itemName || `Producto ${menu.menuId}`,
+          unitPrice,
+          subtotal,
+        });
       }
 
       const order = orderRepo.create({
@@ -189,6 +201,8 @@ export class OrderService {
           detailRepo.create({
             orderId: order.orderId,
             menuId: item.id,
+            itemName: item.itemName,
+            unitPrice: item.unitPrice.toFixed(2),
             quantity: item.quantity,
             subtotal: item.subtotal.toFixed(2),
             notes: item.note || null,
