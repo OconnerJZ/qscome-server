@@ -16,7 +16,7 @@ import { OrderDetails } from "./OrderDetails";
 @Entity("menus", { schema: "qscome" })
 export class Menus {
   @PrimaryGeneratedColumn({ type: "int", name: "menu_id" })
-    menuId!: number;
+  menuId!: number;
 
   @Column("int", { name: "business_id", nullable: true })
   businessId!: number | null;
@@ -37,6 +37,14 @@ export class Menus {
     default: () => "'1'",
   })
   isAvailable!: boolean | null;
+
+  @Column("tinyint", {
+    name: "is_archived",
+    nullable: false,
+    width: 1,
+    default: () => "'0'",
+  })
+  isArchived!: boolean;
 
   @Column("varchar", { name: "category", nullable: true, length: 100 })
   category!: string | null;
