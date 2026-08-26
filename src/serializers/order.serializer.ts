@@ -4,10 +4,6 @@
 
 import { Orders } from "../entities/Orders";
 
-// Estados válidos = enum real de Orders.status en la entidad.
-// OJO: "ready_for_pickup" NO está en el enum de la entidad; si se necesita,
-// primero hay que migrar el enum de la columna. Por eso no se acepta aquí
-// (antes estaba en validStatuses y habría reventado al guardar).
 export const ORDER_STATUSES = [
   "pending",
   "accepted",
@@ -51,14 +47,24 @@ export const formatOrder = (order: Orders) => ({
   notes: order.orderNotes,
   total: Number.parseFloat(order.total || "0"),
   items:
-    order.orderDetails?.map((d) => ({
-      id: d.menuId,
-      name: d.menu?.itemName,
-      quantity: d.quantity,
-      price: Number.parseFloat(d.menu?.price || "0"),
-      subtotal: Number.parseFloat(d.subtotal || "0"),
-      note: d.notes,
-    })) || [],
+    order.orderDetails?.map((d) => {
+      const quantity = Number(d.quantity || 0);
+      const subtotal = Number.parseFloat(d.subtotal || "0");
+      const historicalPrice = d.unitPrice
+        ? Number.parseFloat(d.unitPrice)
+        : quantity > 0
+          ? Number((subtotal / quantity).toFixed(2))
+          : Number.parseFloat(d.menu?.price || "0");
+
+      return {
+        id: d.menuId,
+        name: d.itemName || d.menu?.itemName || "Producto",
+        quantity: d.quantity,
+        price: historicalPrice,
+        subtotal,
+        note: d.notes,
+      };
+    }) || [],
   statusHistory:
     order.orderStatusHistories?.map((h) => ({
       status: h.status,
