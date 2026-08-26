@@ -1,43 +1,33 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import { BusinessController } from "../controllers/BusinessController";
 import { authenticate } from "../middlewares/authMiddleware";
 import { authorize } from "../middlewares/roleMiddleware";
+import { requireBusinessOwnership } from "../middlewares/ownership";
 import { validateDto } from "../middlewares/validateDto";
-import { sanitizeInput } from "../middlewares/sanitizeInput";
 import { CreateBusinessDto } from "../dtos/business.dto";
 
 const router = Router();
 const businessController = new BusinessController();
 
-router.get("/", (req: Request, res: Response) =>
-  businessController.getAll(req, res),
-);
-
-router.get("/:id", (req: Request, res: Response) =>
-  businessController.getById(req, res),
-);
-
-router.get("/owner/:ownerId", (req: Request, res: Response) =>
-  businessController.getByOwner(req, res),
-);
-
-router.get("/:id/menu", (req: Request, res: Response) =>
-  businessController.getMenu(req, res),
-);
+router.get("/", businessController.getAll);
+router.get("/:id", businessController.getById);
+router.get("/owner/:ownerId", businessController.getByOwner);
+router.get("/:id/menu", businessController.getMenu);
 
 router.post(
   "/",
   authenticate,
   authorize("admin", "owner", "customer"),
   validateDto(CreateBusinessDto),
-  (req: Request, res: Response) => businessController.create(req, res),
+  businessController.create,
 );
 
 router.put(
   "/:id",
   authenticate,
   authorize("admin", "owner"),
-  (req: Request, res: Response) => businessController.update(req, res),
+  requireBusinessOwnership("id"), // debe ser dueño de ESE negocio
+  businessController.update,
 );
 
 export default router;

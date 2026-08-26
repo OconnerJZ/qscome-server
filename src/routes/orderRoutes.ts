@@ -1,46 +1,60 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import { OrderController } from "../controllers/OrderController";
 import { authenticate } from "../middlewares/authMiddleware";
 import { authorize } from "../middlewares/roleMiddleware";
+import {
+  requireBusinessOwnership,
+  requireOrderBusinessOwnership,
+  requireOrderAccess,
+  requireSelfOrAdmin,
+} from "../middlewares/ownership";
 import { createOrderValidation } from "../validators/orderValidators";
 import { validateRequest } from "../middlewares/validationMiddleware";
 
 const router = Router();
 const orderController = new OrderController();
 
-router.get("/", 
-    authenticate,
-    authorize("admin"),
-    (req: Request, res: Response) => orderController.getAll(req, res)
+// Los handlers son métodos arrow (this ya ligado): se pasan directos y Express
+// inyecta (req, res, next). Los errores caen en el errorHandler global.
+
+router.get("/", authenticate, authorize("admin"), orderController.getAll);
+
+router.get(
+  "/:id",
+  authenticate,
+  requireOrderAccess("id"), // dueño de la orden, dueño del negocio o admin
+  orderController.getById,
 );
 
-router.get("/:id", 
-    authenticate,
-    (req: Request, res: Response) => orderController.getById(req, res)
+router.get(
+  "/user/:userId",
+  authenticate,
+  requireSelfOrAdmin("userId"), // sólo tus propias órdenes (o admin)
+  orderController.getByUser,
 );
 
-router.get("/user/:userId", 
-    authenticate,
-    (req: Request, res: Response) => orderController.getByUser(req, res)
+router.get(
+  "/business/:businessId",
+  authenticate,
+  authorize("admin", "owner"),
+  requireBusinessOwnership("businessId"), // debe ser dueño de ESE negocio
+  orderController.getByBusiness,
 );
 
-router.get("/business/:businessId", 
-    authenticate,
-    authorize("admin", "owner"),
-    (req: Request, res: Response) => orderController.getByBusiness(req, res)
+router.post(
+  "/",
+  authenticate,
+  createOrderValidation,
+  validateRequest,
+  orderController.create,
 );
 
-router.post("/", 
-    authenticate,
-    createOrderValidation,
-    validateRequest,
-    (req: Request, res: Response) => orderController.create(req, res)
-);
-
-router.patch("/:id/status", 
-    authenticate,
-    authorize("admin", "owner"),
-    (req: Request, res: Response) => orderController.updateStatus(req, res)
+router.patch(
+  "/:id/status",
+  authenticate,
+  authorize("admin", "owner"),
+  requireOrderBusinessOwnership("id"), // dueño del negocio de esa orden
+  orderController.updateStatus,
 );
 
 export default router;

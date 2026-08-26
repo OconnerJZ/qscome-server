@@ -1,15 +1,18 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import { StatsController } from "../controllers/StatsController";
 import { authenticate } from "../middlewares/authMiddleware";
 import { authorize } from "../middlewares/roleMiddleware";
+import { requireBusinessOwnership } from "../middlewares/ownership";
 
 const router = Router();
 const statsController = new StatsController();
 
-router.get("/business/:businessId", 
+router.get(
+  "/business/:businessId",
   authenticate,
   authorize("admin", "owner"),
-  (req: Request, res: Response) => statsController.getBusinessStats(req, res)
+  requireBusinessOwnership("businessId"), // dueño de ESE negocio
+  statsController.getBusinessStats,
 );
 
 export default router;
