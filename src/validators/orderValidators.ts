@@ -1,7 +1,6 @@
 import { body } from "express-validator";
 
 export const createOrderValidation = [
-  body("userId").notEmpty().withMessage("El ID del usuario es requerido"),
   body("businessId").notEmpty().withMessage("El ID del negocio es requerido"),
   body("orderType")
     .optional()
