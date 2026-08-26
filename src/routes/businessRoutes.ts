@@ -14,10 +14,12 @@ router.get("/owner/:ownerId", businessController.getByOwner);
 router.get("/:id/menu", businessController.getMenu);
 router.get("/:id", businessController.getById);
 
+// Crear un negocio es una capacidad de cualquier usuario autenticado. El rol
+// global no debe impedir que un cliente se convierta también en propietario;
+// el acceso posterior se resuelve por business_owners.
 router.post(
   "/",
   authenticate,
-  authorize("admin", "owner", "customer"),
   validateDto(CreateBusinessDto),
   businessController.create,
 );
