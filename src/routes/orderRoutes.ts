@@ -4,7 +4,6 @@ import { authenticate } from "../middlewares/authMiddleware";
 import { authorize } from "../middlewares/roleMiddleware";
 import {
   requireBusinessOwnership,
-  requireOrderBusinessOwnership,
   requireOrderAccess,
   requireSelfOrAdmin,
 } from "../middlewares/ownership";
@@ -14,22 +13,19 @@ import { validateRequest } from "../middlewares/validationMiddleware";
 const router = Router();
 const orderController = new OrderController();
 
-// Los handlers son métodos arrow (this ya ligado): se pasan directos y Express
-// inyecta (req, res, next). Los errores caen en el errorHandler global.
-
 router.get("/", authenticate, authorize("admin"), orderController.getAll);
 
 router.get(
   "/:id",
   authenticate,
-  requireOrderAccess("id"), // dueño de la orden, dueño del negocio o admin
+  requireOrderAccess("id"),
   orderController.getById,
 );
 
 router.get(
   "/user/:userId",
   authenticate,
-  requireSelfOrAdmin("userId"), // sólo tus propias órdenes (o admin)
+  requireSelfOrAdmin("userId"),
   orderController.getByUser,
 );
 
@@ -37,7 +33,7 @@ router.get(
   "/business/:businessId",
   authenticate,
   authorize("admin", "owner"),
-  requireBusinessOwnership("businessId"), // debe ser dueño de ESE negocio
+  requireBusinessOwnership("businessId"),
   orderController.getByBusiness,
 );
 
@@ -49,11 +45,12 @@ router.post(
   orderController.create,
 );
 
+// El middleware resuelve si el actor es cliente de la orden, miembro del negocio o admin.
+// Las transiciones permitidas se validan finalmente en OrderService.
 router.patch(
   "/:id/status",
   authenticate,
-  authorize("admin", "owner"),
-  requireOrderBusinessOwnership("id"), // dueño del negocio de esa orden
+  requireOrderAccess("id"),
   orderController.updateStatus,
 );
 
