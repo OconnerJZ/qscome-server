@@ -8,7 +8,6 @@ import { OrderService } from "../services/OrderService";
 export class OrderController {
   private readonly service = new OrderService();
 
-  // GET /api/orders
   getAll = async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await this.service.list();
@@ -18,7 +17,6 @@ export class OrderController {
     }
   };
 
-  // GET /api/orders/:id
   getById = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await this.service.getById(Number.parseInt(req.params.id, 10));
@@ -28,7 +26,6 @@ export class OrderController {
     }
   };
 
-  // GET /api/orders/user/:userId
   getByUser = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await this.service.getByUser(
@@ -40,7 +37,6 @@ export class OrderController {
     }
   };
 
-  // GET /api/orders/business/:businessId
   getByBusiness = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await this.service.getByBusiness(
@@ -52,10 +48,14 @@ export class OrderController {
     }
   };
 
-  // POST /api/orders
+  // El usuario de la orden siempre sale del JWT; nunca confiamos en userId del body.
   create = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await this.service.create(req.body);
+      const authenticatedUserId = (req as any).user?.userId;
+      const data = await this.service.create({
+        ...req.body,
+        userId: authenticatedUserId,
+      });
       res
         .status(201)
         .json({ success: true, message: "Orden creada exitosamente", data });
@@ -64,15 +64,14 @@ export class OrderController {
     }
   };
 
-  // PATCH /api/orders/:id/status
   updateStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const changedBy = (req as any).user?.userId;
+      const actor = (req as any).user;
       const data = await this.service.updateStatus(
         Number.parseInt(req.params.id, 10),
         req.body.status,
         req.body.note,
-        changedBy,
+        { userId: actor?.userId, role: actor?.role },
       );
       res.json({ success: true, message: "Estado actualizado", data });
     } catch (error) {
