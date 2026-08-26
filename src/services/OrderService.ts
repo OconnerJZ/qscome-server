@@ -27,13 +27,13 @@ export interface CreateOrderInput {
   businessId: number;
   items: CreateOrderItem[];
   total: number;
+  orderType?: "pickup" | "delivery";
   customerName?: string;
   customerPhone?: string;
   deliveryAddress?: string;
   notes?: string;
 }
 
-// Relaciones para el detalle de una orden (cliente/negocio).
 const DETAIL_RELATIONS = [
   "business",
   "orderDetails",
@@ -41,10 +41,34 @@ const DETAIL_RELATIONS = [
   "orderStatusHistories",
 ];
 
+const canMoveToStatus = (order: Orders, nextStatus: string) => {
+  const current = order.status;
+  if (!current) return false;
+  if (nextStatus === "cancelled") {
+    return !["completed", "cancelled"].includes(current);
+  }
+
+  const expected =
+    current === "pending"
+      ? "accepted"
+      : current === "accepted"
+        ? "preparing"
+        : current === "preparing"
+          ? "ready"
+          : current === "ready"
+            ? order.orderType === "pickup"
+              ? "completed"
+              : "in_delivery"
+            : current === "in_delivery"
+              ? "completed"
+              : null;
+
+  return expected === nextStatus;
+};
+
 export class OrderService {
   private readonly orderRepo = AppDataSource.getRepository(Orders);
 
-  // GET /api/orders  (admin)
   async list() {
     const orders = await this.orderRepo.find({
       relations: ["user", "business", "orderDetails", "orderDetails.menu"],
@@ -54,7 +78,6 @@ export class OrderService {
     return orders.map(formatOrder);
   }
 
-  // GET /api/orders/:id
   async getById(orderId: number) {
     const order = await this.orderRepo.findOne({
       where: { orderId },
@@ -70,7 +93,6 @@ export class OrderService {
     return formatOrder(order);
   }
 
-  // GET /api/orders/user/:userId
   async getByUser(userId: number) {
     const orders = await this.orderRepo.find({
       where: { userId },
@@ -80,7 +102,6 @@ export class OrderService {
     return orders.map(formatOrder);
   }
 
-  // GET /api/orders/business/:businessId
   async getByBusiness(businessId: number) {
     const orders = await this.orderRepo.find({
       where: { businessId },
@@ -95,13 +116,13 @@ export class OrderService {
     return orders.map(formatOrder);
   }
 
-  // POST /api/orders  — atómico: orden + detalles + historial en una transacción.
   async create(input: CreateOrderInput) {
     const {
       userId,
       businessId,
       items,
       total,
+      orderType = "pickup",
       customerName,
       customerPhone,
       deliveryAddress,
@@ -110,6 +131,9 @@ export class OrderService {
 
     if (!items?.length) {
       throw new HttpError(400, "La orden debe contener al menos un item");
+    }
+    if (orderType === "delivery" && !deliveryAddress?.trim()) {
+      throw new HttpError(400, "La dirección de entrega es requerida para delivery");
     }
 
     const newOrderId = await AppDataSource.transaction(async (manager) => {
@@ -120,9 +144,10 @@ export class OrderService {
       const order = orderRepo.create({
         userId,
         businessId,
+        orderType,
         customerName,
         customerPhone,
-        deliveryAddress,
+        deliveryAddress: orderType === "delivery" ? deliveryAddress : null,
         orderNotes: notes,
         total: total.toString(),
         status: "pending",
@@ -155,7 +180,6 @@ export class OrderService {
       return order.orderId;
     });
 
-    // Recargar con relaciones y emitir DESPUÉS de commitear la transacción.
     const fullOrder = await this.orderRepo.findOne({
       where: { orderId: newOrderId },
       relations: ["orderDetails", "orderDetails.menu", "orderStatusHistories"],
@@ -166,7 +190,6 @@ export class OrderService {
     return formatted;
   }
 
-  // PATCH /api/orders/:id/status
   async updateStatus(
     orderId: number,
     status: string,
@@ -179,6 +202,12 @@ export class OrderService {
 
     const order = await this.orderRepo.findOne({ where: { orderId } });
     if (!order) throw new HttpError(404, "Orden no encontrada");
+    if (!canMoveToStatus(order, status)) {
+      throw new HttpError(
+        409,
+        `Transición inválida: ${order.status} → ${status}`,
+      );
+    }
 
     order.status = status;
     await this.orderRepo.save(order);
