@@ -54,6 +54,7 @@ export class OrderController {
       const authenticatedUserId = (req as any).user?.userId;
       const data = await this.service.create({
         ...req.body,
+        businessId: Number(req.body.businessId),
         userId: authenticatedUserId,
       });
       res
