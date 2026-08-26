@@ -1,7 +1,3 @@
-// src/services/BusinessService.ts
-// Lógica de negocio y persistencia de "business" y sus sub-recursos.
-// Los controllers sólo traducen HTTP. Errores de dominio → HttpError.
-
 import { AppDataSource } from "../utils/db";
 import { Business } from "../entities/Business";
 import { Menus } from "../entities/Menus";
@@ -21,7 +17,7 @@ import {
 } from "../serializers/business.serializer";
 
 export interface CreateBusinessInput {
-  id: number; // userId del owner
+  id: number;
   business_name?: string;
   phone?: string;
   logo_url?: string;
@@ -34,56 +30,44 @@ export interface CreateBusinessInput {
 const PAYMENT_METHODS = ["cash", "card", "wallet", "transfer"] as const;
 type PaymentType = (typeof PAYMENT_METHODS)[number];
 
+const PROFILE_RELATIONS = [
+  "locations",
+  "businessFoodTypes",
+  "businessFoodTypes.foodType",
+  "businessSchedules",
+  "businessDeliverySettings",
+  "businessPaymentMethods",
+  "businessPhotos",
+];
+
 export class BusinessService {
   private readonly businessRepo = AppDataSource.getRepository(Business);
   private readonly menuRepo = AppDataSource.getRepository(Menus);
   private readonly locationRepo = AppDataSource.getRepository(Locations);
   private readonly scheduleRepo = AppDataSource.getRepository(BusinessSchedule);
-  private readonly bFoodTypesRepo =
-    AppDataSource.getRepository(BusinessFoodTypes);
+  private readonly bFoodTypesRepo = AppDataSource.getRepository(BusinessFoodTypes);
   private readonly bOwnerRepo = AppDataSource.getRepository(BusinessOwners);
-  private readonly bDeliveryRepo = AppDataSource.getRepository(
-    BusinessDeliverySettings,
-  );
-  private readonly bPaymentRepo = AppDataSource.getRepository(
-    BusinessPaymentMethods,
-  );
+  private readonly bDeliveryRepo = AppDataSource.getRepository(BusinessDeliverySettings);
+  private readonly bPaymentRepo = AppDataSource.getRepository(BusinessPaymentMethods);
   private readonly bPhotosRepo = AppDataSource.getRepository(BusinessPhotos);
 
-  // GET /api/business
   async list() {
     const businesses = await this.businessRepo.find({
-      relations: [
-        "locations",
-        "businessFoodTypes",
-        "businessFoodTypes.foodType",
-        "menus",
-      ],
+      relations: PROFILE_RELATIONS,
       take: 50,
     });
     return businesses.map(formatBusinessCard);
   }
 
-  // GET /api/business/:id
   async getById(businessId: number) {
     const business = await this.businessRepo.findOne({
       where: { businessId },
-      relations: [
-        "locations",
-        "businessFoodTypes",
-        "businessFoodTypes.foodType",
-        "businessSchedules",
-        "businessDeliverySettings",
-        "businessPaymentMethods",
-        "businessPhotos",
-        "menus",
-      ],
+      relations: [...PROFILE_RELATIONS, "menus"],
     });
     if (!business) throw new HttpError(404, "Negocio no encontrado");
     return formatBusinessDetail(business);
   }
 
-  // GET /api/business/owner/:ownerId
   async getByOwner(ownerId: number) {
     const owned = await this.bOwnerRepo.find({
       where: { userId: ownerId },
@@ -92,7 +76,10 @@ export class BusinessService {
         "business.locations",
         "business.businessFoodTypes",
         "business.businessFoodTypes.foodType",
-        "business.menus",
+        "business.businessSchedules",
+        "business.businessDeliverySettings",
+        "business.businessPaymentMethods",
+        "business.businessPhotos",
       ],
     });
 
@@ -103,16 +90,14 @@ export class BusinessService {
     return owned.map((bo) => formatOwnerBusinessCard(bo.business));
   }
 
-  // GET /api/business/:id/menu
   async getMenu(businessId: number) {
     const menus = await this.menuRepo.find({
-      where: { businessId, isAvailable: true },
+      where: { businessId, isAvailable: true, isArchived: false },
       order: { category: "ASC", itemName: "ASC" },
     });
     return menus.map(formatMenuItem);
   }
 
-  // PUT /api/business/:id
   async update(businessId: number, body: any) {
     const business = await this.businessRepo.findOne({ where: { businessId } });
     if (!business) throw new HttpError(404, "Negocio no encontrado");
@@ -129,23 +114,21 @@ export class BusinessService {
       estimated_delivery_min,
     } = body;
 
-    if (business_name) business.businessName = business_name;
-    if (phone) business.phone = phone;
-    if (email) business.email = email;
-    if (logo_url) business.logoUrl = logo_url;
-    if (banner_url) business.bannerUrl = banner_url;
+    if (business_name !== undefined) business.businessName = business_name || null;
+    if (phone !== undefined) business.phone = phone || null;
+    if (email !== undefined) business.email = email || null;
+    if (logo_url !== undefined) business.logoUrl = logo_url || null;
+    if (banner_url !== undefined) business.bannerUrl = banner_url || null;
     if (typeof is_open === "boolean") business.isOpen = is_open;
     if (typeof has_delivery === "boolean") business.hasDelivery = has_delivery;
-    if (prep_time_min) business.prepTimeMin = prep_time_min;
-    if (estimated_delivery_min)
-      business.estimatedDeliveryMin = estimated_delivery_min;
+    if (prep_time_min !== undefined) business.prepTimeMin = Number(prep_time_min) || 0;
+    if (estimated_delivery_min !== undefined)
+      business.estimatedDeliveryMin = Number(estimated_delivery_min) || 0;
 
     await this.businessRepo.save(business);
-    return business;
+    return this.getById(businessId);
   }
 
-  // POST /api/business — atómico: negocio + ubicación + horarios + tipos +
-  // settings + métodos de pago + vínculo owner, todo en una transacción.
   async create(input: CreateBusinessInput) {
     const {
       business_name,
@@ -193,10 +176,7 @@ export class BusinessService {
       if (food_type?.length) {
         await bFoodTypesRepo.save(
           food_type.map((foodTypeId) =>
-            bFoodTypesRepo.create({
-              businessId: business.businessId,
-              foodTypeId,
-            }),
+            bFoodTypesRepo.create({ businessId: business.businessId, foodTypeId }),
           ),
         );
       }
@@ -229,30 +209,24 @@ export class BusinessService {
     return { id: businessId, name: business_name };
   }
 
-  // ==========================================================================
-  // SUB-RECURSOS (aún no ruteados, listos para conectar)
-  // ==========================================================================
-
-  // PUT /api/business/:id/location
   async updateLocation(businessId: number, body: any) {
     const { address, city, postal_code, latitude, longitude } = body;
-
     let location = await this.locationRepo.findOne({ where: { businessId } });
 
     if (location) {
-      location.address = address || location.address;
-      location.city = city || location.city;
-      location.postalCode = postal_code || location.postalCode;
-      location.latitude = latitude?.toString() || location.latitude;
-      location.longitude = longitude?.toString() || location.longitude;
+      if (address !== undefined) location.address = address || null;
+      if (city !== undefined) location.city = city || null;
+      if (postal_code !== undefined) location.postalCode = postal_code || null;
+      if (latitude !== undefined) location.latitude = latitude === "" ? null : String(latitude);
+      if (longitude !== undefined) location.longitude = longitude === "" ? null : String(longitude);
     } else {
       location = this.locationRepo.create({
         businessId,
         address,
         city,
         postalCode: postal_code,
-        latitude: latitude?.toString(),
-        longitude: longitude?.toString(),
+        latitude: latitude === "" || latitude == null ? null : String(latitude),
+        longitude: longitude === "" || longitude == null ? null : String(longitude),
       });
     }
 
@@ -260,30 +234,24 @@ export class BusinessService {
     return location;
   }
 
-  // PUT /api/business/:id/schedules
   async updateSchedules(businessId: number, schedules: any) {
-    if (!Array.isArray(schedules)) {
-      throw new HttpError(400, "schedules debe ser un array");
-    }
-
+    if (!Array.isArray(schedules)) throw new HttpError(400, "schedules debe ser un array");
     await this.scheduleRepo.delete({ businessId });
 
     const newSchedules = schedules.map((sched) =>
       this.scheduleRepo.create({
         businessId,
         day: sched.day,
-        isClosed: sched.isClosed,
-        opened: sched.opened,
-        closed: sched.closed,
-        isHoliday: sched.isHoliday || false,
+        isClosed: Boolean(sched.isClosed),
+        opened: sched.isClosed ? null : sched.opened,
+        closed: sched.isClosed ? null : sched.closed,
+        isHoliday: Boolean(sched.isHoliday),
       }),
     );
-
     await this.scheduleRepo.save(newSchedules);
     return newSchedules;
   }
 
-  // PUT /api/business/:id/delivery-settings
   async updateDeliverySettings(businessId: number, body: any) {
     const {
       delivery_radius_km,
@@ -294,24 +262,20 @@ export class BusinessService {
     } = body;
 
     let settings = await this.bDeliveryRepo.findOne({ where: { businessId } });
-
     if (settings) {
-      if (delivery_radius_km)
-        settings.deliveryRadiusKm = delivery_radius_km.toString();
-      if (delivery_fee) settings.deliveryFee = delivery_fee.toString();
-      if (min_order_amount)
-        settings.minOrderAmount = min_order_amount.toString();
-      if (estimated_time_min) settings.estimatedTimeMin = estimated_time_min;
-      if (typeof use_own_delivery === "boolean")
-        settings.useOwnDelivery = use_own_delivery;
+      if (delivery_radius_km !== undefined) settings.deliveryRadiusKm = String(delivery_radius_km);
+      if (delivery_fee !== undefined) settings.deliveryFee = String(delivery_fee);
+      if (min_order_amount !== undefined) settings.minOrderAmount = String(min_order_amount);
+      if (estimated_time_min !== undefined) settings.estimatedTimeMin = Number(estimated_time_min);
+      if (typeof use_own_delivery === "boolean") settings.useOwnDelivery = use_own_delivery;
     } else {
       settings = this.bDeliveryRepo.create({
         businessId,
-        deliveryRadiusKm: delivery_radius_km?.toString() || "5.00",
-        deliveryFee: delivery_fee?.toString() || "0.00",
-        minOrderAmount: min_order_amount?.toString() || "0.00",
-        estimatedTimeMin: estimated_time_min || 30,
-        useOwnDelivery: use_own_delivery || false,
+        deliveryRadiusKm: String(delivery_radius_km ?? 5),
+        deliveryFee: String(delivery_fee ?? 0),
+        minOrderAmount: String(min_order_amount ?? 0),
+        estimatedTimeMin: Number(estimated_time_min ?? 30),
+        useOwnDelivery: Boolean(use_own_delivery),
       });
     }
 
@@ -319,53 +283,40 @@ export class BusinessService {
     return settings;
   }
 
-  // PUT /api/business/:id/payment-methods
   async updatePaymentMethods(businessId: number, payment_methods: any) {
     if (!Array.isArray(payment_methods)) {
       throw new HttpError(400, "payment_methods debe ser un array");
     }
-
     for (const pm of payment_methods) {
       const existing = await this.bPaymentRepo.findOne({
         where: { businessId, method: pm.method },
       });
       if (existing) {
-        existing.isActive = pm.is_active;
+        existing.isActive = Boolean(pm.is_active);
         existing.configJson = pm.config_json || null;
         await this.bPaymentRepo.save(existing);
       }
     }
-
     return this.bPaymentRepo.find({ where: { businessId } });
   }
 
-  // PUT /api/business/:id/food-types
   async updateFoodTypes(businessId: number, food_type_ids: any) {
-    if (!Array.isArray(food_type_ids)) {
-      throw new HttpError(400, "food_type_ids debe ser un array");
-    }
-
+    if (!Array.isArray(food_type_ids)) throw new HttpError(400, "food_type_ids debe ser un array");
     await this.bFoodTypesRepo.delete({ businessId });
-
     const newTypes = food_type_ids.map((typeId) =>
       this.bFoodTypesRepo.create({ businessId, foodTypeId: typeId }),
     );
     await this.bFoodTypesRepo.save(newTypes);
-
-    return this.bFoodTypesRepo.find({
-      where: { businessId },
-      relations: ["foodType"],
-    });
+    return this.bFoodTypesRepo.find({ where: { businessId }, relations: ["foodType"] });
   }
 
-  // POST /api/business/:id/photos
   async addPhoto(businessId: number, photo_url: string) {
+    if (!photo_url) throw new HttpError(400, "photo_url es requerido");
     const photo = this.bPhotosRepo.create({ businessId, photoUrl: photo_url });
     await this.bPhotosRepo.save(photo);
-    return photo;
+    return { id: photo.photoId, url: photo.photoUrl };
   }
 
-  // DELETE /api/business/:id/photos/:photoId
   async deletePhoto(photoId: number) {
     await this.bPhotosRepo.delete({ photoId });
   }
