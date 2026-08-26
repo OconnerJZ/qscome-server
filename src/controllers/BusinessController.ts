@@ -52,7 +52,16 @@ export class BusinessController {
   // POST /api/business
   create = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await this.service.create(req.body);
+      const authenticatedUserId = Number((req as any).user?.userId);
+      if (!Number.isInteger(authenticatedUserId) || authenticatedUserId <= 0) {
+        return res.status(401).json({ success: false, message: "Usuario no autenticado" });
+      }
+
+      // Nunca confiamos en un user id enviado por el cliente para asignar ownership.
+      const data = await this.service.create({
+        ...req.body,
+        id: authenticatedUserId,
+      });
       res
         .status(201)
         .json({ success: true, message: "Negocio creado exitosamente", data });
@@ -75,99 +84,55 @@ export class BusinessController {
   };
 
   // ==========================================================================
-  // SUB-RECURSOS (listos para rutear cuando se necesiten)
+  // SUB-RECURSOS
   // ==========================================================================
 
   updateLocation = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await this.service.updateLocation(
-        Number.parseInt(req.params.id, 10),
-        req.body,
-      );
+      const data = await this.service.updateLocation(Number.parseInt(req.params.id, 10), req.body);
       res.json({ success: true, message: "Ubicación actualizada", data });
-    } catch (error) {
-      next(error);
-    }
+    } catch (error) { next(error); }
   };
 
   updateSchedules = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await this.service.updateSchedules(
-        Number.parseInt(req.params.id, 10),
-        req.body.schedules,
-      );
+      const data = await this.service.updateSchedules(Number.parseInt(req.params.id, 10), req.body.schedules);
       res.json({ success: true, message: "Horarios actualizados", data });
-    } catch (error) {
-      next(error);
-    }
+    } catch (error) { next(error); }
   };
 
-  updateDeliverySettings = async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) => {
+  updateDeliverySettings = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await this.service.updateDeliverySettings(
-        Number.parseInt(req.params.id, 10),
-        req.body,
-      );
-      res.json({
-        success: true,
-        message: "Configuración de delivery actualizada",
-        data,
-      });
-    } catch (error) {
-      next(error);
-    }
+      const data = await this.service.updateDeliverySettings(Number.parseInt(req.params.id, 10), req.body);
+      res.json({ success: true, message: "Configuración de delivery actualizada", data });
+    } catch (error) { next(error); }
   };
 
-  updatePaymentMethods = async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) => {
+  updatePaymentMethods = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await this.service.updatePaymentMethods(
-        Number.parseInt(req.params.id, 10),
-        req.body.payment_methods,
-      );
+      const data = await this.service.updatePaymentMethods(Number.parseInt(req.params.id, 10), req.body.payment_methods);
       res.json({ success: true, message: "Métodos de pago actualizados", data });
-    } catch (error) {
-      next(error);
-    }
+    } catch (error) { next(error); }
   };
 
   updateFoodTypes = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await this.service.updateFoodTypes(
-        Number.parseInt(req.params.id, 10),
-        req.body.food_type_ids,
-      );
+      const data = await this.service.updateFoodTypes(Number.parseInt(req.params.id, 10), req.body.food_type_ids);
       res.json({ success: true, message: "Tipos de comida actualizados", data });
-    } catch (error) {
-      next(error);
-    }
+    } catch (error) { next(error); }
   };
 
   addPhoto = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await this.service.addPhoto(
-        Number.parseInt(req.params.id, 10),
-        req.body.photo_url,
-      );
-      res.json({ success: true, message: "Foto agregada", data });
-    } catch (error) {
-      next(error);
-    }
+      const data = await this.service.addPhoto(Number.parseInt(req.params.id, 10), req.body.photo_url);
+      res.status(201).json({ success: true, message: "Foto agregada", data });
+    } catch (error) { next(error); }
   };
 
   deletePhoto = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await this.service.deletePhoto(Number.parseInt(req.params.photoId, 10));
+      await this.service.deletePhoto(Number.parseInt(req.params.id, 10), Number.parseInt(req.params.photoId, 10));
       res.json({ success: true, message: "Foto eliminada" });
-    } catch (error) {
-      next(error);
-    }
+    } catch (error) { next(error); }
   };
 }
