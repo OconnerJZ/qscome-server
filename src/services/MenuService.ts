@@ -18,12 +18,13 @@ export interface CreateMenuInput {
   price: number;
   image_url?: string;
   category?: string;
+  is_available?: boolean;
 }
 
 export class MenuService {
   private readonly menuRepo = AppDataSource.getRepository(Menus);
 
-  // GET /api/menus
+  // GET /api/menus — catálogo público disponible.
   async list() {
     const menus = await this.menuRepo.find({
       relations: ["business"],
@@ -42,10 +43,19 @@ export class MenuService {
     return formatMenuDetail(menu);
   }
 
-  // GET /api/menus/business/:businessId
+  // GET /api/menus/business/:businessId — menú público, solo disponibles.
   async getByBusiness(businessId: number) {
     const menus = await this.menuRepo.find({
       where: { businessId, isAvailable: true },
+      order: { category: "ASC", itemName: "ASC" },
+    });
+    return menus.map(formatBusinessMenuItem);
+  }
+
+  // GET /api/menus/business/:businessId/manage — catálogo completo para operación.
+  async getManagedByBusiness(businessId: number) {
+    const menus = await this.menuRepo.find({
+      where: { businessId },
       order: { category: "ASC", itemName: "ASC" },
     });
     return menus.map(formatBusinessMenuItem);
@@ -55,12 +65,13 @@ export class MenuService {
   async create(input: CreateMenuInput) {
     const menu = this.menuRepo.create({
       businessId: input.business_id,
-      itemName: input.item_name,
-      description: input.description,
-      price: input.price.toString(),
-      imageUrl: input.image_url,
-      category: input.category,
-      isAvailable: true,
+      itemName: input.item_name.trim(),
+      description: input.description?.trim() || null,
+      price: Number(input.price).toFixed(2),
+      imageUrl: input.image_url?.trim() || null,
+      category: input.category?.trim() || null,
+      isAvailable:
+        typeof input.is_available === "boolean" ? input.is_available : true,
     });
     await this.menuRepo.save(menu);
     return formatMenuMini(menu);
@@ -71,13 +82,29 @@ export class MenuService {
     const menu = await this.menuRepo.findOne({ where: { menuId } });
     if (!menu) throw new HttpError(404, "Producto no encontrado");
 
-    const { item_name, description, price, image_url, category, is_available } =
-      body;
-    if (item_name) menu.itemName = item_name;
-    if (description) menu.description = description;
-    if (price) menu.price = price.toString();
-    if (image_url) menu.imageUrl = image_url;
-    if (category) menu.category = category;
+    const { item_name, description, price, image_url, category, is_available } = body;
+
+    if (item_name !== undefined) {
+      const name = String(item_name).trim();
+      if (!name) throw new HttpError(400, "El nombre del producto es requerido");
+      menu.itemName = name;
+    }
+    if (description !== undefined) {
+      menu.description = String(description).trim() || null;
+    }
+    if (price !== undefined) {
+      const value = Number(price);
+      if (!Number.isFinite(value) || value <= 0) {
+        throw new HttpError(400, "El precio debe ser mayor a 0");
+      }
+      menu.price = value.toFixed(2);
+    }
+    if (image_url !== undefined) {
+      menu.imageUrl = String(image_url).trim() || null;
+    }
+    if (category !== undefined) {
+      menu.category = String(category).trim() || null;
+    }
     if (typeof is_available === "boolean") menu.isAvailable = is_available;
 
     await this.menuRepo.save(menu);
