@@ -24,6 +24,17 @@ export class OrderDetails {
   @Column("int", { name: "menu_id", nullable: true })
   menuId!: number | null;
 
+  @Column("varchar", { name: "item_name", nullable: true, length: 255 })
+  itemName!: string | null;
+
+  @Column("decimal", {
+    name: "unit_price",
+    nullable: true,
+    precision: 10,
+    scale: 2,
+  })
+  unitPrice!: string | null;
+
   @Column("int", { name: "quantity", nullable: true })
   quantity!: number | null;
 
