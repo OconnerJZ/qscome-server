@@ -4,9 +4,12 @@
 
 import { Request, Response, NextFunction } from "express";
 import { OrderService } from "../services/OrderService";
+import { KitchenService } from "../services/KitchenService";
+import { KitchenItemStatus } from "../entities/OrderDetails";
 
 export class OrderController {
   private readonly service = new OrderService();
+  private readonly kitchenService = new KitchenService();
 
   getAll = async (_req: Request, res: Response, next: NextFunction) => {
     try {
@@ -28,9 +31,7 @@ export class OrderController {
 
   getByUser = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await this.service.getByUser(
-        Number.parseInt(req.params.userId, 10),
-      );
+      const data = await this.service.getByUser(Number.parseInt(req.params.userId, 10));
       res.json({ success: true, data });
     } catch (error) {
       next(error);
@@ -39,16 +40,13 @@ export class OrderController {
 
   getByBusiness = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const data = await this.service.getByBusiness(
-        Number.parseInt(req.params.businessId, 10),
-      );
+      const data = await this.service.getByBusiness(Number.parseInt(req.params.businessId, 10));
       res.json({ success: true, data });
     } catch (error) {
       next(error);
     }
   };
 
-  // El usuario de la orden siempre sale del JWT; nunca confiamos en userId del body.
   create = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const authenticatedUserId = (req as any).user?.userId;
@@ -57,9 +55,7 @@ export class OrderController {
         businessId: Number(req.body.businessId),
         userId: authenticatedUserId,
       });
-      res
-        .status(201)
-        .json({ success: true, message: "Orden creada exitosamente", data });
+      res.status(201).json({ success: true, message: "Orden creada exitosamente", data });
     } catch (error) {
       next(error);
     }
@@ -75,6 +71,21 @@ export class OrderController {
         { userId: actor?.userId, role: actor?.role },
       );
       res.json({ success: true, message: "Estado actualizado", data });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateKitchenItemStatus = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actor = (req as any).user;
+      const data = await this.kitchenService.updateItemStatus(
+        Number.parseInt(req.params.id, 10),
+        Number.parseInt(req.params.detailId, 10),
+        req.body.status as KitchenItemStatus,
+        { userId: actor?.userId, role: actor?.role },
+      );
+      res.json({ success: true, message: "Producto actualizado", data });
     } catch (error) {
       next(error);
     }
