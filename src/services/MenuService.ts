@@ -21,12 +21,17 @@ export interface CreateMenuInput {
   is_available?: boolean;
 }
 
+const MODIFIER_RELATIONS = [
+  "menuOptionGroups",
+  "menuOptionGroups.menuOptionChoices",
+] as const;
+
 export class MenuService {
   private readonly menuRepo = AppDataSource.getRepository(Menus);
 
   async list() {
     const menus = await this.menuRepo.find({
-      relations: ["business"],
+      relations: ["business", ...MODIFIER_RELATIONS],
       where: { isAvailable: true, isArchived: false },
     });
     return menus.map(formatMenuCard);
@@ -35,7 +40,11 @@ export class MenuService {
   async getById(menuId: number) {
     const menu = await this.menuRepo.findOne({
       where: { menuId, isArchived: false },
-      relations: ["business", "menuOptions", "menuOptionGroups"],
+      relations: [
+        "business",
+        "menuOptions", // compatibilidad legacy
+        ...MODIFIER_RELATIONS,
+      ],
     });
     if (!menu) throw new HttpError(404, "Producto no encontrado");
     return formatMenuDetail(menu);
@@ -44,6 +53,7 @@ export class MenuService {
   async getByBusiness(businessId: number) {
     const menus = await this.menuRepo.find({
       where: { businessId, isAvailable: true, isArchived: false },
+      relations: [...MODIFIER_RELATIONS],
       order: { category: "ASC", itemName: "ASC" },
     });
     return menus.map(formatBusinessMenuItem);
@@ -52,6 +62,7 @@ export class MenuService {
   async getManagedByBusiness(businessId: number) {
     const menus = await this.menuRepo.find({
       where: { businessId, isArchived: false },
+      relations: [...MODIFIER_RELATIONS],
       order: { category: "ASC", itemName: "ASC" },
     });
     return menus.map(formatBusinessMenuItem);
@@ -86,29 +97,20 @@ export class MenuService {
       if (!name) throw new HttpError(400, "El nombre del producto es requerido");
       menu.itemName = name;
     }
-    if (description !== undefined) {
-      menu.description = String(description).trim() || null;
-    }
+    if (description !== undefined) menu.description = String(description).trim() || null;
     if (price !== undefined) {
       const value = Number(price);
-      if (!Number.isFinite(value) || value <= 0) {
-        throw new HttpError(400, "El precio debe ser mayor a 0");
-      }
+      if (!Number.isFinite(value) || value <= 0) throw new HttpError(400, "El precio debe ser mayor a 0");
       menu.price = value.toFixed(2);
     }
-    if (image_url !== undefined) {
-      menu.imageUrl = String(image_url).trim() || null;
-    }
-    if (category !== undefined) {
-      menu.category = String(category).trim() || null;
-    }
+    if (image_url !== undefined) menu.imageUrl = String(image_url).trim() || null;
+    if (category !== undefined) menu.category = String(category).trim() || null;
     if (typeof is_available === "boolean") menu.isAvailable = is_available;
 
     await this.menuRepo.save(menu);
     return formatMenuMini(menu);
   }
 
-  // DELETE /api/menus/:id — archivo lógico; conserva referencias históricas.
   async softDelete(menuId: number) {
     const menu = await this.menuRepo.findOne({ where: { menuId } });
     if (!menu) throw new HttpError(404, "Producto no encontrado");
