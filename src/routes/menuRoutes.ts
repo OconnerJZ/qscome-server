@@ -26,6 +26,13 @@ router.get(
   menuController.getManagedByBusiness,
 );
 router.get("/:id", menuController.getById);
+router.get(
+  "/:id/modifiers",
+  authenticate,
+  authorize("admin", "owner"),
+  requireMenuOwnership("id"),
+  menuController.getModifierGroups,
+);
 
 router.post(
   "/",
@@ -45,6 +52,14 @@ router.put(
   updateMenuValidation,
   validateRequest,
   menuController.update,
+);
+
+router.put(
+  "/:id/modifiers",
+  authenticate,
+  authorize("admin", "owner"),
+  requireMenuOwnership("id"),
+  menuController.replaceModifierGroups,
 );
 
 router.delete(
