@@ -9,6 +9,7 @@ export const isValidStatus = (status: string): status is OrderStatus => (ORDER_S
 
 export const formatOrder = (order: Orders) => ({
   id: order.orderId,
+  version: Number(order.version || 1),
   userId: order.userId,
   businessId: order.businessId,
   businessName: order.business?.businessName,
