@@ -69,6 +69,7 @@ export class OrderController {
       const data = await this.pendingOrderService.replaceItems(
         Number.parseInt(req.params.id, 10),
         req.body.items,
+        Number(req.body.expectedVersion),
         { userId: actor?.userId, role: actor?.role },
       );
       res.json({ success: true, message: "Orden actualizada", data });
