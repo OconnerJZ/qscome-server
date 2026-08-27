@@ -45,6 +45,13 @@ router.post(
   orderController.create,
 );
 
+router.put(
+  "/:id/items",
+  authenticate,
+  requireOrderAccess("id"),
+  orderController.updatePendingOrder,
+);
+
 router.patch(
   "/:id/status",
   authenticate,
