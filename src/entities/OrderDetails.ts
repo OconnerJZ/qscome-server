@@ -11,6 +11,8 @@ import { Orders } from "./Orders";
 import { Menus } from "./Menus";
 import { OrderDetailOptions } from "./OrderDetailOptions";
 
+export type KitchenItemStatus = "pending" | "preparing" | "ready";
+
 @Index("order_id", ["orderId"], {})
 @Index("menu_id", ["menuId"], {})
 @Entity("order_details", { schema: "qscome" })
@@ -46,6 +48,13 @@ export class OrderDetails {
   })
   subtotal!: string | null;
 
+  @Column("enum", {
+    name: "kitchen_status",
+    enum: ["pending", "preparing", "ready"],
+    default: () => "'pending'",
+  })
+  kitchenStatus!: KitchenItemStatus;
+
   @Column("datetime", {
     name: "created_at",
     nullable: true,
@@ -79,7 +88,7 @@ export class OrderDetails {
 
   @OneToMany(
     () => OrderDetailOptions,
-    (orderDetailOptions) => orderDetailOptions.orderDetail
+    (orderDetailOptions) => orderDetailOptions.orderDetail,
   )
   orderDetailOptions!: OrderDetailOptions[];
 }
