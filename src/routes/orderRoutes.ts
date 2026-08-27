@@ -45,13 +45,18 @@ router.post(
   orderController.create,
 );
 
-// El middleware resuelve si el actor es cliente de la orden, miembro del negocio o admin.
-// Las transiciones permitidas se validan finalmente en OrderService.
 router.patch(
   "/:id/status",
   authenticate,
   requireOrderAccess("id"),
   orderController.updateStatus,
+);
+
+router.patch(
+  "/:id/items/:detailId/kitchen-status",
+  authenticate,
+  requireOrderAccess("id"),
+  orderController.updateKitchenItemStatus,
 );
 
 export default router;
