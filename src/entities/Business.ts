@@ -21,18 +21,10 @@ export class Business {
   @Column("varchar", { name: "business_name", nullable: true, length: 255 })
   businessName!: string | null;
 
-  @Column("datetime", {
-    name: "created_at",
-    nullable: true,
-    default: () => "CURRENT_TIMESTAMP",
-  })
+  @Column("datetime", { name: "created_at", nullable: true, default: () => "CURRENT_TIMESTAMP" })
   createdAt!: Date | null;
 
-  @Column("datetime", {
-    name: "updated_at",
-    nullable: true,
-    default: () => "CURRENT_TIMESTAMP",
-  })
+  @Column("datetime", { name: "updated_at", nullable: true, default: () => "CURRENT_TIMESTAMP" })
   updatedAt!: Date | null;
 
   @Column("varchar", { name: "phone", nullable: true, length: 30 })
@@ -47,90 +39,66 @@ export class Business {
   @Column("varchar", { name: "banner_url", nullable: true, length: 255 })
   bannerUrl!: string | null;
 
+  @Column("varchar", { name: "facebook_url", nullable: true, length: 500 })
+  facebookUrl!: string | null;
+
+  @Column("varchar", { name: "instagram_url", nullable: true, length: 500 })
+  instagramUrl!: string | null;
+
   @Column("int", { name: "prep_time_min", nullable: true })
   prepTimeMin!: number | null;
 
   @Column("int", { name: "estimated_delivery_min", nullable: true })
   estimatedDeliveryMin!: number | null;
 
-  @Column("tinyint", {
-    name: "has_delivery",
-    nullable: true,
-    width: 1,
-    default: () => "'0'",
-  })
+  @Column("tinyint", { name: "has_delivery", nullable: true, width: 1, default: () => "'0'" })
   hasDelivery!: boolean | null;
 
-  @Column("tinyint", {
-    name: "is_open",
-    nullable: true,
-    width: 1,
-    default: () => "'1'",
-  })
+  @Column("tinyint", { name: "is_open", nullable: true, width: 1, default: () => "'1'" })
   isOpen!: boolean | null;
 
-  @Column("tinyint", {
-    name: "is_verified",
-    nullable: true,
-    width: 1,
-    default: () => "'0'",
-  })
+  @Column("tinyint", { name: "is_verified", nullable: true, width: 1, default: () => "'0'" })
   isVerified!: boolean | null;
 
   @Column("datetime", { name: "verified_at", nullable: true })
   verifiedAt!: Date | null;
 
-  @OneToMany(
-    () => BusinessDeliverySettings,
-    (businessDeliverySettings) => businessDeliverySettings.business
-  )
+  @OneToMany(() => BusinessDeliverySettings, (row) => row.business)
   businessDeliverySettings!: BusinessDeliverySettings[];
 
-  @OneToMany(
-    () => BusinessFoodTypes,
-    (businessFoodTypes) => businessFoodTypes.business
-  )
+  @OneToMany(() => BusinessFoodTypes, (row) => row.business)
   businessFoodTypes!: BusinessFoodTypes[];
 
-  @OneToMany(() => BusinessOwners, (businessOwners) => businessOwners.business)
+  @OneToMany(() => BusinessOwners, (row) => row.business)
   businessOwners!: BusinessOwners[];
 
-  @OneToMany(
-    () => BusinessPaymentMethods,
-    (businessPaymentMethods) => businessPaymentMethods.business
-  )
+  @OneToMany(() => BusinessPaymentMethods, (row) => row.business)
   businessPaymentMethods!: BusinessPaymentMethods[];
 
-  @OneToMany(() => BusinessPhotos, (businessPhotos) => businessPhotos.business)
+  @OneToMany(() => BusinessPhotos, (row) => row.business)
   businessPhotos!: BusinessPhotos[];
 
-  @OneToMany(
-    () => BusinessSchedule,
-    (businessSchedule) => businessSchedule.business
-  )
+  @OneToMany(() => BusinessSchedule, (row) => row.business)
   businessSchedules!: BusinessSchedule[];
 
-  @OneToMany(
-    () => GlobalVirtualAssistants,
-    (globalVirtualAssistants) => globalVirtualAssistants.business
-  )
+  @OneToMany(() => GlobalVirtualAssistants, (row) => row.business)
   globalVirtualAssistants!: GlobalVirtualAssistants[];
 
-  @OneToMany(() => Locations, (locations) => locations.business)
+  @OneToMany(() => Locations, (row) => row.business)
   locations!: Locations[];
 
-  @OneToMany(() => Menus, (menus) => menus.business)
+  @OneToMany(() => Menus, (row) => row.business)
   menus!: Menus[];
 
-  @OneToMany(() => Orders, (orders) => orders.business)
+  @OneToMany(() => Orders, (row) => row.business)
   orders!: Orders[];
 
-  @OneToMany(() => Promotions, (promotions) => promotions.business)
+  @OneToMany(() => Promotions, (row) => row.business)
   promotions!: Promotions[];
 
-  @OneToMany(() => ReviewComments, (reviewComments) => reviewComments.business)
+  @OneToMany(() => ReviewComments, (row) => row.business)
   reviewComments!: ReviewComments[];
 
-  @OneToMany(() => Tables, (tables) => tables.business)
+  @OneToMany(() => Tables, (row) => row.business)
   tables!: Tables[];
 }
