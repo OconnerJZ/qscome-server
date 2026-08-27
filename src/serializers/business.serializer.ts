@@ -58,6 +58,12 @@ const formatPaymentMethods = (b: Business) =>
     config: method.configJson,
   })) || [];
 
+const formatSocial = (b: Business) => ({
+  facebook: b.facebookUrl || "",
+  instagram: b.instagramUrl || "",
+  whats: b.phone ? `https://wa.me/${b.phone.replace(/\D/g, "")}` : "",
+});
+
 const formatBusinessProfile = (b: Business) => ({
   id: b.businessId,
   name: b.businessName,
@@ -85,28 +91,21 @@ const formatBusinessProfile = (b: Business) => ({
     })) || [],
   deliverySettings: formatDeliverySettings(b),
   paymentMethods: formatPaymentMethods(b),
+  social: formatSocial(b),
   createdAt: b.createdAt,
   updatedAt: b.updatedAt,
 });
 
-// GET /api/business — perfil público suficientemente completo para Explore.
 export const formatBusinessCard = (b: Business) => ({
   ...formatBusinessProfile(b),
   likes: 0,
-  social: {
-    facebook: "",
-    instagram: "",
-    whats: b.phone ? `https://wa.me/${b.phone.replace(/\D/g, "")}` : "",
-  },
 });
 
-// GET /api/business/owner/:ownerId — mismo contrato base para evitar datos parciales.
 export const formatOwnerBusinessCard = (b: Business) => ({
   ...formatBusinessProfile(b),
   isVerified: Boolean(b.isVerified),
 });
 
-// GET /api/business/:id — detalle completo.
 export const formatBusinessDetail = (b: Business) => ({
   ...formatBusinessProfile(b),
   businessName: b.businessName,
