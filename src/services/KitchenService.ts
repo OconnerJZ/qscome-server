@@ -55,26 +55,25 @@ export class KitchenService {
         await historyRepo.save(historyRepo.create({ orderId: order.orderId, status: "preparing", not: "Preparación iniciada", changedBy: actor.userId }));
         orderStatusChanged = true;
       }
+      if (current !== status) {
+        await this.auditService.record({
+          orderId,
+          businessId: order.businessId,
+          actorUserId: actor.userId,
+          actorRole: actor.role,
+          action: "KITCHEN_ITEM_STATUS_CHANGED",
+          entityType: "order_item",
+          entityId: detailId,
+          orderVersion: order.version,
+          metadata: { itemName: detail.itemName, from: current, to: status, quantity: detail.quantity },
+        }, manager);
+      }
     });
 
     const fullOrder = await this.orderRepo.findOne({ where: { orderId }, relations: ["user", "business", "orderDetails", "orderDetails.menu", "orderDetails.orderDetailOptions", "orderStatusHistories"] });
     if (!fullOrder) throw new HttpError(404, "Orden no encontrada");
     const formatted = formatOrder(fullOrder);
     const updatedItem = formatted.items.find((item) => Number(item.detailId) === Number(detailId));
-
-    if (current !== status) {
-      await this.auditService.record({
-        orderId,
-        businessId: fullOrder.businessId,
-        actorUserId: actor.userId,
-        actorRole: actor.role,
-        action: "KITCHEN_ITEM_STATUS_CHANGED",
-        entityType: "order_item",
-        entityId: detailId,
-        orderVersion: fullOrder.version,
-        metadata: { itemName: updatedItem?.name, from: current, to: status, quantity: updatedItem?.quantity, kitchenProgress: formatted.kitchenProgress },
-      });
-    }
 
     const payload = { orderId, businessId: fullOrder.businessId, detailId, status, orderStatus: fullOrder.status, item: updatedItem, kitchenProgress: formatted.kitchenProgress, timestamp: new Date().toISOString(), changedBy: actor.userId };
     emitKitchenItemUpdate(Number(fullOrder.businessId), fullOrder.userId, payload);

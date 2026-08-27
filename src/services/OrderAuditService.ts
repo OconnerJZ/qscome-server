@@ -52,10 +52,19 @@ export class OrderAuditService {
       entityType: row.entityType,
       entityId: row.entityId,
       orderVersion: row.orderVersion,
-      metadata: row.metadataJson ? JSON.parse(row.metadataJson) : null,
+      metadata: this.parseMetadata(row.metadataJson),
       ipAddress: row.ipAddress,
       userAgent: row.userAgent,
       createdAt: row.createdAt,
     }));
+  }
+
+  private parseMetadata(value: string | null) {
+    if (!value) return null;
+    try {
+      return JSON.parse(value) as Record<string, unknown>;
+    } catch {
+      return { unavailable: true };
+    }
   }
 }

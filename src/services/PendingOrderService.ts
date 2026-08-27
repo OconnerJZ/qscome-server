@@ -116,21 +116,24 @@ export class PendingOrderService {
       lockedOrder.total = total.toFixed(2);
       await orderRepo.save(lockedOrder);
       await historyRepo.save(historyRepo.create({ orderId, status: "pending", not: `Orden modificada por el cliente (v${expectedVersion} → v${expectedVersion + 1})`, changedBy: actor.userId }));
+      await this.auditService.record({
+        orderId,
+        businessId: lockedOrder.businessId,
+        actorUserId: actor.userId,
+        actorRole: actor.role || "customer",
+        action: "ORDER_ITEMS_UPDATED",
+        orderVersion: lockedOrder.version,
+        metadata: {
+          before,
+          after: { total, items: pricedItems.map((item) => ({ menuId: item.id, name: item.itemName, quantity: item.quantity, subtotal: item.subtotal, modifiers: item.modifierSnapshots })) },
+          previousVersion: expectedVersion,
+        },
+      }, manager);
     });
 
     const refreshed = await AppDataSource.getRepository(Orders).findOne({ where: { orderId }, relations: ["user", "business", "orderDetails", "orderDetails.menu", "orderDetails.orderDetailOptions", "orderStatusHistories"] });
     if (!refreshed) throw new HttpError(404, "Orden no encontrada");
     const formatted = formatOrder(refreshed);
-
-    await this.auditService.record({
-      orderId,
-      businessId: refreshed.businessId,
-      actorUserId: actor.userId,
-      actorRole: actor.role || "customer",
-      action: "ORDER_ITEMS_UPDATED",
-      orderVersion: refreshed.version,
-      metadata: { before, after: { total: formatted.total, items: formatted.items.map((i) => ({ detailId: i.detailId, menuId: i.id, quantity: i.quantity, subtotal: i.subtotal, modifiers: i.modifiers })) }, previousVersion: expectedVersion },
-    });
 
     emitOrderUpdated(Number(refreshed.businessId), refreshed.userId, formatted);
     return formatted;

@@ -118,32 +118,50 @@ export class OrderService {
         if (item.modifierSnapshots.length) await detailOptionRepo.save(item.modifierSnapshots.map((modifier) => detailOptionRepo.create({ orderDetailId: detail.orderDetailId, optionId: null, choiceId: modifier.choiceId, groupTitle: modifier.groupTitle, choiceName: modifier.choiceName, priceExtra: modifier.priceExtra.toFixed(2), selectionState: modifier.selectionState })));
       }
       await historyRepo.save(historyRepo.create({ orderId: order.orderId, status: "pending", not: "Orden creada", changedBy: userId }));
+      await this.auditService.record({
+        orderId: order.orderId,
+        businessId: normalizedBusinessId,
+        actorUserId: userId,
+        actorRole: "customer",
+        action: "ORDER_CREATED",
+        orderVersion: order.version,
+        metadata: {
+          orderType,
+          total: calculatedTotal,
+          itemCount: pricedItems.reduce((sum, item) => sum + item.quantity, 0),
+          items: pricedItems.map((item) => ({ menuId: item.id, name: item.itemName, quantity: item.quantity, subtotal: item.subtotal, modifiers: item.modifierSnapshots })),
+        },
+      }, manager);
       return order.orderId;
     });
 
     const fullOrder = await this.orderRepo.findOne({ where: { orderId: newOrderId }, relations: ["orderDetails", "orderDetails.menu", "orderDetails.orderDetailOptions", "orderStatusHistories"] });
     const formatted = formatOrder(fullOrder!);
-    await this.auditService.record({ orderId: newOrderId, businessId: normalizedBusinessId, actorUserId: userId, actorRole: "customer", action: "ORDER_CREATED", orderVersion: fullOrder?.version, metadata: { orderType, total: formatted.total, itemCount: formatted.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0), items: formatted.items.map((item) => ({ menuId: item.id, name: item.name, quantity: item.quantity, subtotal: item.subtotal, modifiers: item.modifiers })) } });
     emitNewOrder(normalizedBusinessId, formatted);
     return formatted;
   }
 
   async updateStatus(orderId: number, status: string, note: string | undefined, actor: OrderActor = {}) {
     if (!isValidStatus(status)) throw new HttpError(400, "Estado inválido");
-    const order = await this.orderRepo.findOne({ where: { orderId } });
-    if (!order) throw new HttpError(404, "Orden no encontrada");
-    const previousStatus = order.status;
-    const isPrivilegedRole = actor.role === "admin" || actor.role === "owner";
-    const isCustomerActor = actor.userId === order.userId && !isPrivilegedRole;
-    if (isCustomerActor) {
-      if (status !== "cancelled") throw new HttpError(403, "El cliente sólo puede cancelar su orden");
-      if (order.status !== "pending") throw new HttpError(409, "La orden ya fue aceptada y no puede cancelarse desde la aplicación");
-    }
-    if (!canMoveToStatus(order, status)) throw new HttpError(409, `Transición inválida: ${order.status} → ${status}`);
-    order.status = status;
-    await this.orderRepo.save(order);
-    await AppDataSource.getRepository(OrderStatusHistory).save(AppDataSource.getRepository(OrderStatusHistory).create({ orderId: order.orderId, status, not: note || `Estado cambiado a ${status}`, changedBy: actor.userId }));
-    await this.auditService.record({ orderId, businessId: order.businessId, actorUserId: actor.userId, actorRole: actor.role, action: status === "cancelled" ? "ORDER_CANCELLED" : "ORDER_STATUS_CHANGED", orderVersion: order.version, metadata: { from: previousStatus, to: status, note: note || null } });
+    const order = await AppDataSource.transaction(async (manager) => {
+      const orderRepo = manager.getRepository(Orders);
+      const historyRepo = manager.getRepository(OrderStatusHistory);
+      const currentOrder = await orderRepo.findOne({ where: { orderId } });
+      if (!currentOrder) throw new HttpError(404, "Orden no encontrada");
+      const previousStatus = currentOrder.status;
+      const isPrivilegedRole = actor.role === "admin" || actor.role === "owner";
+      const isCustomerActor = actor.userId === currentOrder.userId && !isPrivilegedRole;
+      if (isCustomerActor) {
+        if (status !== "cancelled") throw new HttpError(403, "El cliente sólo puede cancelar su orden");
+        if (currentOrder.status !== "pending") throw new HttpError(409, "La orden ya fue aceptada y no puede cancelarse desde la aplicación");
+      }
+      if (!canMoveToStatus(currentOrder, status)) throw new HttpError(409, `Transición inválida: ${currentOrder.status} → ${status}`);
+      currentOrder.status = status;
+      await orderRepo.save(currentOrder);
+      await historyRepo.save(historyRepo.create({ orderId: currentOrder.orderId, status, not: note || `Estado cambiado a ${status}`, changedBy: actor.userId }));
+      await this.auditService.record({ orderId, businessId: currentOrder.businessId, actorUserId: actor.userId, actorRole: actor.role, action: status === "cancelled" ? "ORDER_CANCELLED" : "ORDER_STATUS_CHANGED", orderVersion: currentOrder.version, metadata: { from: previousStatus, to: status, note: note || null } }, manager);
+      return currentOrder;
+    });
     if (order.userId) emitOrderStatusUpdate(order.userId, { orderId: order.orderId, status: order.status, statusLabel: getStatusLabel(order.status!), timestamp: new Date().toISOString() });
     return { orderId: order.orderId, status: order.status };
   }
