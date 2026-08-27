@@ -3,6 +3,8 @@
 
 import { AppDataSource } from "../utils/db";
 import { Menus } from "../entities/Menus";
+import { MenuOptionGroups } from "../entities/MenuOptionGroups";
+import { MenuOptionChoices } from "../entities/MenuOptionChoices";
 import { HttpError } from "../utils/httpError";
 import {
   formatMenuCard,
@@ -21,17 +23,27 @@ export interface CreateMenuInput {
   is_available?: boolean;
 }
 
-const MODIFIER_RELATIONS = [
-  "menuOptionGroups",
-  "menuOptionGroups.menuOptionChoices",
-] as const;
+interface ModifierChoiceInput {
+  id?: number;
+  name: string;
+  priceExtra?: number;
+  defaultSelected?: boolean;
+}
+
+interface ModifierGroupInput {
+  id?: number;
+  title: string;
+  minSelect?: number;
+  maxSelect?: number;
+  choices?: ModifierChoiceInput[];
+}
 
 export class MenuService {
   private readonly menuRepo = AppDataSource.getRepository(Menus);
 
   async list() {
     const menus = await this.menuRepo.find({
-      relations: ["business", ...MODIFIER_RELATIONS],
+      relations: ["business"],
       where: { isAvailable: true, isArchived: false },
     });
     return menus.map(formatMenuCard);
@@ -42,8 +54,9 @@ export class MenuService {
       where: { menuId, isArchived: false },
       relations: [
         "business",
-        "menuOptions", // compatibilidad legacy
-        ...MODIFIER_RELATIONS,
+        "menuOptions",
+        "menuOptionGroups",
+        "menuOptionGroups.menuOptionChoices",
       ],
     });
     if (!menu) throw new HttpError(404, "Producto no encontrado");
@@ -53,7 +66,7 @@ export class MenuService {
   async getByBusiness(businessId: number) {
     const menus = await this.menuRepo.find({
       where: { businessId, isAvailable: true, isArchived: false },
-      relations: [...MODIFIER_RELATIONS],
+      relations: ["menuOptionGroups", "menuOptionGroups.menuOptionChoices"],
       order: { category: "ASC", itemName: "ASC" },
     });
     return menus.map(formatBusinessMenuItem);
@@ -62,7 +75,7 @@ export class MenuService {
   async getManagedByBusiness(businessId: number) {
     const menus = await this.menuRepo.find({
       where: { businessId, isArchived: false },
-      relations: [...MODIFIER_RELATIONS],
+      relations: ["menuOptionGroups", "menuOptionGroups.menuOptionChoices"],
       order: { category: "ASC", itemName: "ASC" },
     });
     return menus.map(formatBusinessMenuItem);
@@ -111,6 +124,59 @@ export class MenuService {
     return formatMenuMini(menu);
   }
 
+  async getModifierGroups(menuId: number) {
+    const menu = await this.menuRepo.findOne({
+      where: { menuId, isArchived: false },
+      relations: ["menuOptionGroups", "menuOptionGroups.menuOptionChoices"],
+    });
+    if (!menu) throw new HttpError(404, "Producto no encontrado");
+    return formatMenuDetail(menu).modifierGroups;
+  }
+
+  async replaceModifierGroups(menuId: number, groups: ModifierGroupInput[] = []) {
+    const menu = await this.menuRepo.findOne({ where: { menuId, isArchived: false } });
+    if (!menu) throw new HttpError(404, "Producto no encontrado");
+    if (!Array.isArray(groups)) throw new HttpError(400, "Los grupos de personalización son inválidos");
+
+    for (const group of groups) {
+      const title = String(group.title || "").trim();
+      if (!title) throw new HttpError(400, "Cada grupo necesita un nombre");
+      const min = Math.max(0, Number(group.minSelect || 0));
+      const max = Math.max(0, Number(group.maxSelect || 0));
+      if (max > 0 && min > max) throw new HttpError(400, `${title}: el mínimo no puede superar al máximo`);
+      if (!Array.isArray(group.choices) || group.choices.length === 0) throw new HttpError(400, `${title}: agrega al menos una opción`);
+      if (max === 1 && group.choices.filter((c) => c.defaultSelected).length > 1) throw new HttpError(400, `${title}: sólo puede existir una opción predeterminada`);
+    }
+
+    await AppDataSource.transaction(async (manager) => {
+      const groupRepo = manager.getRepository(MenuOptionGroups);
+      const choiceRepo = manager.getRepository(MenuOptionChoices);
+      const existingGroups = await groupRepo.find({ where: { menuId }, relations: ["menuOptionChoices"] });
+      const choiceIds = existingGroups.flatMap((group) => group.menuOptionChoices?.map((choice) => choice.choiceId) || []);
+      if (choiceIds.length) await choiceRepo.delete(choiceIds);
+      if (existingGroups.length) await groupRepo.delete(existingGroups.map((group) => group.groupId));
+
+      for (const group of groups) {
+        const savedGroup = await groupRepo.save(groupRepo.create({
+          menuId,
+          title: String(group.title).trim(),
+          minSelect: Math.max(0, Number(group.minSelect || 0)),
+          maxSelect: Math.max(0, Number(group.maxSelect || 0)),
+        }));
+
+        await choiceRepo.save((group.choices || []).map((choice) => choiceRepo.create({
+          groupId: savedGroup.groupId,
+          name: String(choice.name || "").trim(),
+          priceExtra: Math.max(0, Number(choice.priceExtra || 0)).toFixed(2),
+          isDefault: Boolean(choice.defaultSelected),
+        })));
+      }
+    });
+
+    return this.getModifierGroups(menuId);
+  }
+
+  // DELETE /api/menus/:id — archivo lógico; conserva referencias históricas.
   async softDelete(menuId: number) {
     const menu = await this.menuRepo.findOne({ where: { menuId } });
     if (!menu) throw new HttpError(404, "Producto no encontrado");
