@@ -136,40 +136,76 @@ export class MenuService {
   async replaceModifierGroups(menuId: number, groups: ModifierGroupInput[] = []) {
     const menu = await this.menuRepo.findOne({ where: { menuId, isArchived: false } });
     if (!menu) throw new HttpError(404, "Producto no encontrado");
-    if (!Array.isArray(groups)) throw new HttpError(400, "Los grupos de personalización son inválidos");
+    if (!Array.isArray(groups)) {
+      throw new HttpError(400, "Los grupos de personalización son inválidos");
+    }
 
     for (const group of groups) {
       const title = String(group.title || "").trim();
       if (!title) throw new HttpError(400, "Cada grupo necesita un nombre");
+
+      const choices = Array.isArray(group.choices) ? group.choices : [];
+      if (!choices.length) throw new HttpError(400, `${title}: agrega al menos una opción`);
+      if (choices.some((choice) => !String(choice.name || "").trim())) {
+        throw new HttpError(400, `${title}: hay opciones sin nombre`);
+      }
+
       const min = Math.max(0, Number(group.minSelect || 0));
       const max = Math.max(0, Number(group.maxSelect || 0));
-      if (max > 0 && min > max) throw new HttpError(400, `${title}: el mínimo no puede superar al máximo`);
-      if (!Array.isArray(group.choices) || group.choices.length === 0) throw new HttpError(400, `${title}: agrega al menos una opción`);
-      if (max === 1 && group.choices.filter((c) => c.defaultSelected).length > 1) throw new HttpError(400, `${title}: sólo puede existir una opción predeterminada`);
+      const defaults = choices.filter((choice) => Boolean(choice.defaultSelected)).length;
+
+      if (min > choices.length) {
+        throw new HttpError(400, `${title}: el mínimo supera el número de opciones`);
+      }
+      if (max > 0 && max > choices.length) {
+        throw new HttpError(400, `${title}: el máximo supera el número de opciones`);
+      }
+      if (max > 0 && min > max) {
+        throw new HttpError(400, `${title}: el mínimo no puede superar al máximo`);
+      }
+      if (max > 0 && defaults > max) {
+        throw new HttpError(400, `${title}: hay más opciones predeterminadas que el máximo permitido`);
+      }
+      if (max === 1 && defaults > 1) {
+        throw new HttpError(400, `${title}: sólo puede existir una opción predeterminada`);
+      }
     }
 
     await AppDataSource.transaction(async (manager) => {
       const groupRepo = manager.getRepository(MenuOptionGroups);
       const choiceRepo = manager.getRepository(MenuOptionChoices);
-      const existingGroups = await groupRepo.find({ where: { menuId }, relations: ["menuOptionChoices"] });
-      const choiceIds = existingGroups.flatMap((group) => group.menuOptionChoices?.map((choice) => choice.choiceId) || []);
+      const existingGroups = await groupRepo.find({
+        where: { menuId },
+        relations: ["menuOptionChoices"],
+      });
+      const choiceIds = existingGroups.flatMap(
+        (group) => group.menuOptionChoices?.map((choice) => choice.choiceId) || [],
+      );
       if (choiceIds.length) await choiceRepo.delete(choiceIds);
-      if (existingGroups.length) await groupRepo.delete(existingGroups.map((group) => group.groupId));
+      if (existingGroups.length) {
+        await groupRepo.delete(existingGroups.map((group) => group.groupId));
+      }
 
       for (const group of groups) {
-        const savedGroup = await groupRepo.save(groupRepo.create({
-          menuId,
-          title: String(group.title).trim(),
-          minSelect: Math.max(0, Number(group.minSelect || 0)),
-          maxSelect: Math.max(0, Number(group.maxSelect || 0)),
-        }));
+        const savedGroup = await groupRepo.save(
+          groupRepo.create({
+            menuId,
+            title: String(group.title).trim(),
+            minSelect: Math.max(0, Number(group.minSelect || 0)),
+            maxSelect: Math.max(0, Number(group.maxSelect || 0)),
+          }),
+        );
 
-        await choiceRepo.save((group.choices || []).map((choice) => choiceRepo.create({
-          groupId: savedGroup.groupId,
-          name: String(choice.name || "").trim(),
-          priceExtra: Math.max(0, Number(choice.priceExtra || 0)).toFixed(2),
-          isDefault: Boolean(choice.defaultSelected),
-        })));
+        await choiceRepo.save(
+          (group.choices || []).map((choice) =>
+            choiceRepo.create({
+              groupId: savedGroup.groupId,
+              name: String(choice.name || "").trim(),
+              priceExtra: Math.max(0, Number(choice.priceExtra || 0)).toFixed(2),
+              isDefault: Boolean(choice.defaultSelected),
+            }),
+          ),
+        );
       }
     });
 
