@@ -35,11 +35,24 @@ app.use(
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-const projectRoot = path.resolve(__dirname, ".");
-const uploadsPath = path.join(projectRoot, "uploads");
+// IMPORTANTE: usar process.cwd() mantiene la misma carpeta tanto con ts-node
+// como al ejecutar node dist/server.js. Con __dirname el build terminaba
+// apuntando a dist/uploads y dejaba de encontrar imágenes históricas.
+const uploadsPath = path.resolve(process.cwd(), "uploads");
+const uploadsStatic = express.static(uploadsPath, {
+  fallthrough: true,
+  maxAge: process.env.NODE_ENV === "production" ? "1d" : 0,
+});
 
-// Servir carpeta uploads
-app.use("/uploads", express.static(uploadsPath));
+// Ruta canónica de archivos.
+app.use("/uploads", uploadsStatic);
+
+// Compatibilidad con URLs antiguas que pudieron guardarse como /api/uploads/...
+// Debe declararse ANTES de las rutas /api para que no caiga en el 404 de API.
+app.use("/api/uploads", express.static(uploadsPath, {
+  fallthrough: true,
+  maxAge: process.env.NODE_ENV === "production" ? "1d" : 0,
+}));
 
 // Health check
 app.get("/", (req, res) => {
@@ -79,10 +92,10 @@ app.use("/api/users", userRoutes);
 app.use("/api/business", businessRoutes);
 app.use("/api/menus", menuRoutes);
 app.use("/api/orders", orderRoutes);
-app.use("/api/payments", paymentRoutes); // RUTA CORREGIDA
+app.use("/api/payments", paymentRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/catalogs", catalogRoutes);
-app.use("/api/stats", statsRoutes); // NUEVO
+app.use("/api/stats", statsRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);
@@ -102,6 +115,8 @@ AppDataSource.initialize()
 
     httpServer.listen(PORT, () => {
       console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+      console.log(`🖼️ Archivos estáticos en http://localhost:${PORT}/uploads`);
+      console.log(`📁 Carpeta uploads: ${uploadsPath}`);
       console.log(`🔌 Socket.IO inicializado`);
       console.log(`🌍 Entorno: ${process.env.NODE_ENV || "development"}`);
       console.log("\n📡 Endpoints disponibles:");
@@ -118,7 +133,7 @@ AppDataSource.initialize()
       console.log("   POST   /api/payments");
       console.log("   POST   /api/upload/image");
       console.log("   GET    /api/catalogs/food-types");
-      console.log("   GET    /api/stats/business/:businessId"); // NUEVO
+      console.log("   GET    /api/stats/business/:businessId");
     });
   })
   .catch((error) => {
