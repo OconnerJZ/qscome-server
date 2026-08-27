@@ -24,7 +24,21 @@ const canMoveKitchenStatus = (current: KitchenItemStatus, next: KitchenItemStatu
 export class KitchenService {
   private readonly detailRepo = AppDataSource.getRepository(OrderDetails);
   private readonly orderRepo = AppDataSource.getRepository(Orders);
-  private readonly historyRepo = AppDataSource.getRepository(OrderStatusHistory);
+
+  async assertAllItemsReady(orderId: number) {
+    const details = await this.detailRepo.find({ where: { orderId } });
+    if (!details.length) throw new HttpError(409, "La orden no tiene productos para preparar");
+
+    const pending = details.filter((item) => item.kitchenStatus !== "ready");
+    if (pending.length > 0) {
+      const readyUnits = details.reduce(
+        (sum, item) => sum + (item.kitchenStatus === "ready" ? Number(item.quantity || 0) : 0),
+        0,
+      );
+      const totalUnits = details.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+      throw new HttpError(409, `Aún faltan productos por terminar (${readyUnits}/${totalUnits} listos)`);
+    }
+  }
 
   async updateItemStatus(
     orderId: number,
