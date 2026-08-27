@@ -51,6 +51,12 @@ export const emitOrderStatusUpdate = (userId: number, orderData: any) => {
   console.log(`📨 Estado de orden actualizado para user:${userId}`);
 };
 
+export const emitOrderUpdated = (businessId: number, userId: number | null | undefined, orderData: any) => {
+  io.to(`business:${businessId}`).emit('order:updated', orderData);
+  if (userId) io.to(`user:${userId}`).emit('order:updated', orderData);
+  console.log(`📝 Orden actualizada order:${orderData?.id} business:${businessId}`);
+};
+
 export const emitKitchenItemUpdate = (businessId: number, userId: number | null | undefined, payload: any) => {
   io.to(`business:${businessId}`).emit('order:kitchen_item_update', payload);
   if (userId) io.to(`user:${userId}`).emit('order:kitchen_item_update', payload);
