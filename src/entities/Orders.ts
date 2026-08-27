@@ -6,6 +6,7 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  VersionColumn,
 } from "typeorm";
 import { DeliveryPersons } from "./DeliveryPersons";
 import { UserAddresses } from "./UserAddresses";
@@ -30,6 +31,7 @@ export class Orders {
   @Column("datetime", { name: "order_date", nullable: true }) orderDate!: Date | null;
   @Column("datetime", { name: "created_at", nullable: true, default: () => "CURRENT_TIMESTAMP" }) createdAt!: Date | null;
   @Column("datetime", { name: "updated_at", nullable: true, default: () => "CURRENT_TIMESTAMP" }) updatedAt!: Date | null;
+  @VersionColumn({ name: "version", type: "int", default: 1 }) version!: number;
   @Column("int", { name: "delivery_id", nullable: true }) deliveryId!: number | null;
   @Column("enum", { name: "delivery_status", nullable: true, enum: ["unassigned", "assigned", "on_route", "delivered"], default: () => "'unassigned'" }) deliveryStatus!: "unassigned" | "assigned" | "on_route" | "delivered" | null;
   @Column("enum", { name: "status", nullable: true, enum: ["pending", "accepted", "preparing", "ready", "in_delivery", "completed", "cancelled"], default: () => "'pending'" }) status!: "pending" | "accepted" | "preparing" | "ready" | "in_delivery" | "completed" | "cancelled" | null;
