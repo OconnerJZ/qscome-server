@@ -29,11 +29,45 @@ export const formatOrder = (order: Orders) => ({
   notes: order.orderNotes,
   total: Number.parseFloat(order.total || "0"),
   items: order.orderDetails?.map((d) => {
-    const quantity = Number(d.quantity || 0); const subtotal = Number.parseFloat(d.subtotal || "0");
-    const historicalPrice = d.unitPrice ? Number.parseFloat(d.unitPrice) : quantity > 0 ? Number((subtotal / quantity).toFixed(2)) : Number.parseFloat(d.menu?.price || "0");
-    return { id: d.menuId, name: d.itemName || d.menu?.itemName || "Producto", quantity: d.quantity, price: historicalPrice, subtotal, note: d.notes };
+    const quantity = Number(d.quantity || 0);
+    const subtotal = Number.parseFloat(d.subtotal || "0");
+    const historicalPrice = d.unitPrice
+      ? Number.parseFloat(d.unitPrice)
+      : quantity > 0
+        ? Number((subtotal / quantity).toFixed(2))
+        : Number.parseFloat(d.menu?.price || "0");
+
+    return {
+      detailId: d.orderDetailId,
+      id: d.menuId,
+      name: d.itemName || d.menu?.itemName || "Producto",
+      quantity: d.quantity,
+      price: historicalPrice,
+      subtotal,
+      note: d.notes,
+      kitchenStatus: d.kitchenStatus || "pending",
+      modifiers: (d.orderDetailOptions || []).map((modifier) => ({
+        choiceId: modifier.choiceId,
+        group: modifier.groupTitle,
+        name: modifier.choiceName || modifier.option?.optionName || "Opción",
+        priceExtra: Number.parseFloat(modifier.priceExtra || "0"),
+        state: modifier.selectionState || "selected",
+      })),
+    };
   }) || [],
-  statusHistory: order.orderStatusHistories?.map((h) => ({ status: h.status, timestamp: h.createdAt, createdAt: h.createdAt, note: h.not, changedBy: h.changedBy })) || [],
+  kitchenProgress: (() => {
+    const items = order.orderDetails || [];
+    const totalItems = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const readyItems = items.reduce((sum, item) => sum + (item.kitchenStatus === "ready" ? Number(item.quantity || 0) : 0), 0);
+    return { ready: readyItems, total: totalItems };
+  })(),
+  statusHistory: order.orderStatusHistories?.map((h) => ({
+    status: h.status,
+    timestamp: h.createdAt,
+    createdAt: h.createdAt,
+    note: h.not,
+    changedBy: h.changedBy,
+  })) || [],
   createdAt: order.createdAt,
   updatedAt: order.updatedAt,
 });
