@@ -3,6 +3,22 @@
 
 import { Menus } from "../entities/Menus";
 
+const formatModifierGroups = (m: Menus) =>
+  (m.menuOptionGroups || []).map((group) => ({
+    id: group.groupId,
+    title: group.title,
+    minSelect: Number(group.minSelect || 0),
+    maxSelect: Number(group.maxSelect || 0),
+    selectionType: Number(group.maxSelect || 0) === 1 ? "single" : "multiple",
+    required: Number(group.minSelect || 0) > 0,
+    choices: (group.menuOptionChoices || []).map((choice) => ({
+      id: choice.choiceId,
+      name: choice.name,
+      priceExtra: Number.parseFloat(choice.priceExtra || "0"),
+      defaultSelected: Boolean(choice.isDefault),
+    })),
+  }));
+
 const baseMenuItem = (m: Menus) => ({
   id: m.menuId,
   name: m.itemName,
@@ -11,6 +27,7 @@ const baseMenuItem = (m: Menus) => ({
   image: m.imageUrl,
   category: m.category,
   available: m.isAvailable,
+  modifierGroups: formatModifierGroups(m),
 });
 
 export const formatMenuCard = (m: Menus) => ({
@@ -22,13 +39,12 @@ export const formatMenuCard = (m: Menus) => ({
 export const formatMenuDetail = (m: Menus) => ({
   ...baseMenuItem(m),
   businessId: m.businessId,
-  options: m.menuOptions,
-  optionGroups: m.menuOptionGroups,
+  options: m.menuOptions, // compatibilidad legacy
+  optionGroups: formatModifierGroups(m),
 });
 
 export const formatBusinessMenuItem = (m: Menus) => baseMenuItem(m);
 
-// Create/update devuelven el mismo contrato visual consumido por React.
 export const formatMenuMini = (m: Menus) => ({
   ...baseMenuItem(m),
   businessId: m.businessId,
