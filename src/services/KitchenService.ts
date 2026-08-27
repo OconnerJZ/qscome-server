@@ -1,9 +1,10 @@
 import { AppDataSource } from "../utils/db";
 import { OrderDetails, KitchenItemStatus } from "../entities/OrderDetails";
 import { Orders } from "../entities/Orders";
+import { OrderStatusHistory } from "../entities/OrderStatusHistory";
 import { HttpError } from "../utils/httpError";
-import { formatOrder } from "../serializers/order.serializer";
-import { emitKitchenItemUpdate } from "../utils/socket";
+import { formatOrder, getStatusLabel } from "../serializers/order.serializer";
+import { emitKitchenItemUpdate, emitOrderStatusUpdate } from "../utils/socket";
 
 interface KitchenActor {
   userId?: number;
@@ -23,6 +24,7 @@ const canMoveKitchenStatus = (current: KitchenItemStatus, next: KitchenItemStatu
 export class KitchenService {
   private readonly detailRepo = AppDataSource.getRepository(OrderDetails);
   private readonly orderRepo = AppDataSource.getRepository(Orders);
+  private readonly historyRepo = AppDataSource.getRepository(OrderStatusHistory);
 
   async updateItemStatus(
     orderId: number,
@@ -57,10 +59,35 @@ export class KitchenService {
       throw new HttpError(409, `Transición de cocina inválida: ${current} → ${status}`);
     }
 
-    if (current !== status) {
-      detail.kitchenStatus = status;
-      await this.detailRepo.save(detail);
-    }
+    let orderStatusChanged = false;
+
+    await AppDataSource.transaction(async (manager) => {
+      const detailRepo = manager.getRepository(OrderDetails);
+      const orderRepo = manager.getRepository(Orders);
+      const historyRepo = manager.getRepository(OrderStatusHistory);
+
+      if (current !== status) {
+        detail.kitchenStatus = status;
+        await detailRepo.save(detail);
+      }
+
+      // El primer producto que entra a preparación mueve la orden global a "preparing".
+      // Llegar a todos-ready NO mueve automáticamente a "ready": el negocio conserva
+      // el control para revisar empaque, bebidas y entrega antes de marcar la orden lista.
+      if (status === "preparing" && order.status === "accepted") {
+        order.status = "preparing";
+        await orderRepo.save(order);
+        await historyRepo.save(
+          historyRepo.create({
+            orderId: order.orderId,
+            status: "preparing",
+            not: "Preparación iniciada",
+            changedBy: actor.userId,
+          }),
+        );
+        orderStatusChanged = true;
+      }
+    });
 
     const fullOrder = await this.orderRepo.findOne({
       where: { orderId },
@@ -83,6 +110,7 @@ export class KitchenService {
       businessId: fullOrder.businessId,
       detailId,
       status,
+      orderStatus: fullOrder.status,
       item: updatedItem,
       kitchenProgress: formatted.kitchenProgress,
       timestamp: new Date().toISOString(),
@@ -91,10 +119,20 @@ export class KitchenService {
 
     emitKitchenItemUpdate(Number(fullOrder.businessId), fullOrder.userId, payload);
 
+    if (orderStatusChanged && fullOrder.userId) {
+      emitOrderStatusUpdate(fullOrder.userId, {
+        orderId: fullOrder.orderId,
+        status: fullOrder.status,
+        statusLabel: getStatusLabel(fullOrder.status || "preparing"),
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     return {
       orderId,
       detailId,
       status,
+      orderStatus: fullOrder.status,
       kitchenProgress: formatted.kitchenProgress,
       item: updatedItem,
     };
