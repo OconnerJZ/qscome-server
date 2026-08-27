@@ -94,14 +94,16 @@ const buildModifierSnapshots = (menu: Menus, requested: PendingOrderModifierInpu
 };
 
 export class PendingOrderService {
-  async replaceItems(orderId: number, items: PendingOrderItemInput[], actor: PendingOrderActor = {}) {
+  async replaceItems(orderId: number, items: PendingOrderItemInput[], expectedVersion: number, actor: PendingOrderActor = {}) {
     if (!actor.userId) throw new HttpError(401, "Usuario no autenticado");
     if (!Array.isArray(items) || items.length === 0) throw new HttpError(400, "La orden debe conservar al menos un producto");
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new HttpError(400, "Versión de orden requerida");
 
     const order = await AppDataSource.getRepository(Orders).findOne({ where: { orderId } });
     if (!order) throw new HttpError(404, "Orden no encontrada");
     if (Number(order.userId) !== Number(actor.userId)) throw new HttpError(403, "Sólo el cliente de la orden puede modificarla");
     if (order.status !== "pending") throw new HttpError(409, "La orden ya fue aceptada y está bloqueada para edición");
+    if (Number(order.version) !== expectedVersion) throw new HttpError(409, "La orden cambió desde que comenzaste a editarla. Actualiza y vuelve a intentarlo");
 
     await AppDataSource.transaction(async (manager) => {
       const orderRepo = manager.getRepository(Orders);
@@ -131,9 +133,9 @@ export class PendingOrderService {
         pricedItems.push({ ...item, quantity, itemName: menu.itemName || `Producto ${menu.menuId}`, unitPrice, subtotal, modifierSnapshots: snapshots });
       }
 
-      // Volvemos a comprobar dentro de la transacción para cerrar la carrera con "Aceptar".
       const lockedOrder = await orderRepo.findOne({ where: { orderId } });
       if (!lockedOrder || lockedOrder.status !== "pending") throw new HttpError(409, "La orden acaba de ser aceptada y ya no puede modificarse");
+      if (Number(lockedOrder.version) !== expectedVersion) throw new HttpError(409, "Otra sesión modificó esta orden. Actualiza antes de guardar nuevos cambios");
 
       const existingDetails = await detailRepo.find({ where: { orderId } });
       const detailIds = existingDetails.map((detail) => detail.orderDetailId);
@@ -172,7 +174,7 @@ export class PendingOrderService {
       await historyRepo.save(historyRepo.create({
         orderId,
         status: "pending",
-        not: "Orden modificada por el cliente",
+        not: `Orden modificada por el cliente (v${expectedVersion} → v${expectedVersion + 1})`,
         changedBy: actor.userId,
       }));
     });
