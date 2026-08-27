@@ -3,8 +3,10 @@ import path from 'path';
 import crypto from 'crypto';
 import fs from 'fs';
 
-const projectRoot = path.resolve(__dirname, '..', '..');
-const uploadsPath = path.join(projectRoot, 'uploads');
+// Mantener la misma carpeta física en desarrollo y producción.
+// __dirname cambia al compilar a dist/, process.cwd() no si el servidor se
+// ejecuta desde la raíz del proyecto (npm run dev / npm start).
+const uploadsPath = path.resolve(process.cwd(), 'uploads');
 
 // Crear directorio si no existe
 if (!fs.existsSync(uploadsPath)) {
@@ -36,7 +38,6 @@ const storage = multer.diskStorage({
     cb(null, uploadsPath);
   },
   filename: function (req, file, cb) {
-    // Generar nombre único con hash
     const uniqueSuffix = crypto.randomBytes(16).toString('hex');
     const ext = ALLOWED_TYPES[file.mimetype as keyof typeof ALLOWED_TYPES] || path.extname(file.originalname);
     const fileName = `${Date.now()}-${uniqueSuffix}${ext}`;
@@ -44,7 +45,6 @@ const storage = multer.diskStorage({
   }
 });
 
-// Configuración de multer
 export const uploadSecure = multer({
   storage,
   fileFilter,
@@ -54,7 +54,6 @@ export const uploadSecure = multer({
   }
 });
 
-// Middleware para manejar errores de multer
 export const handleMulterError = (err: any, req: any, res: any, next: any) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
