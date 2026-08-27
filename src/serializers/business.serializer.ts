@@ -78,10 +78,11 @@ const formatBusinessProfile = (b: Business) => ({
   locations: b.locations || [],
   schedules: formatSchedules(b),
   tags: buildTags(b),
-  foodTypes: b.businessFoodTypes?.map((ft) => ({
-    id: ft.foodTypeId,
-    name: ft.foodType?.typeName,
-  })) || [],
+  foodTypes:
+    b.businessFoodTypes?.map((ft) => ({
+      id: ft.foodTypeId,
+      name: ft.foodType?.typeName,
+    })) || [],
   deliverySettings: formatDeliverySettings(b),
   paymentMethods: formatPaymentMethods(b),
   createdAt: b.createdAt,
