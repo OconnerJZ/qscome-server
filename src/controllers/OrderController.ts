@@ -64,8 +64,14 @@ export class OrderController {
   updateStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const actor = (req as any).user;
+      const orderId = Number.parseInt(req.params.id, 10);
+
+      if (req.body.status === "ready") {
+        await this.kitchenService.assertAllItemsReady(orderId);
+      }
+
       const data = await this.service.updateStatus(
-        Number.parseInt(req.params.id, 10),
+        orderId,
         req.body.status,
         req.body.note,
         { userId: actor?.userId, role: actor?.role },
