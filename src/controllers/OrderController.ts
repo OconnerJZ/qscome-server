@@ -1,15 +1,17 @@
 // src/controllers/OrderController.ts
-// Controller delgado: sólo traduce HTTP ↔ service. La lógica vive en OrderService
+// Controller delgado: sólo traduce HTTP ↔ service. La lógica vive en servicios
 // y el formateo en el serializer. Los errores se delegan al errorHandler global.
 
 import { Request, Response, NextFunction } from "express";
 import { OrderService } from "../services/OrderService";
 import { KitchenService } from "../services/KitchenService";
+import { PendingOrderService } from "../services/PendingOrderService";
 import { KitchenItemStatus } from "../entities/OrderDetails";
 
 export class OrderController {
   private readonly service = new OrderService();
   private readonly kitchenService = new KitchenService();
+  private readonly pendingOrderService = new PendingOrderService();
 
   getAll = async (_req: Request, res: Response, next: NextFunction) => {
     try {
@@ -56,6 +58,20 @@ export class OrderController {
         userId: authenticatedUserId,
       });
       res.status(201).json({ success: true, message: "Orden creada exitosamente", data });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updatePendingOrder = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actor = (req as any).user;
+      const data = await this.pendingOrderService.replaceItems(
+        Number.parseInt(req.params.id, 10),
+        req.body.items,
+        { userId: actor?.userId, role: actor?.role },
+      );
+      res.json({ success: true, message: "Orden actualizada", data });
     } catch (error) {
       next(error);
     }
