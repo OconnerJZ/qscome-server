@@ -57,7 +57,9 @@ export class StatsService {
       this.orderRepo.count({ where: { businessId, status: "pending" } }),
     ]);
 
-    const completedOrders = currentOrders.filter((order) => order.status === "completed");
+    const completedOrders = currentOrders.filter(
+      (order) => order.status === "completed",
+    );
     const totalRevenue = completedOrders.reduce(
       (sum, order) => sum + Number.parseFloat(order.total || "0"),
       0,
@@ -92,7 +94,11 @@ export class StatsService {
     };
   }
 
-  private async getSalesByDay(businessId: number, days: number, currentEnd: Date) {
+  private async getSalesByDay(
+    businessId: number,
+    days: number,
+    currentEnd: Date,
+  ) {
     const result: Array<{ date: string; revenue: number; orders: number }> = [];
 
     for (let i = days - 1; i >= 0; i--) {
@@ -150,7 +156,11 @@ export class StatsService {
       LIMIT 8
     `;
 
-    const rows = await AppDataSource.query(query, [businessId, startDate, endDate]);
+    const rows = await AppDataSource.query(query, [
+      businessId,
+      startDate,
+      endDate,
+    ]);
 
     return rows.map((product: any) => ({
       id: product.id,

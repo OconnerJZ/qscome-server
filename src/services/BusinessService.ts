@@ -55,10 +55,15 @@ export class BusinessService {
   private readonly menuRepo = AppDataSource.getRepository(Menus);
   private readonly locationRepo = AppDataSource.getRepository(Locations);
   private readonly scheduleRepo = AppDataSource.getRepository(BusinessSchedule);
-  private readonly bFoodTypesRepo = AppDataSource.getRepository(BusinessFoodTypes);
+  private readonly bFoodTypesRepo =
+    AppDataSource.getRepository(BusinessFoodTypes);
   private readonly bOwnerRepo = AppDataSource.getRepository(BusinessOwners);
-  private readonly bDeliveryRepo = AppDataSource.getRepository(BusinessDeliverySettings);
-  private readonly bPaymentRepo = AppDataSource.getRepository(BusinessPaymentMethods);
+  private readonly bDeliveryRepo = AppDataSource.getRepository(
+    BusinessDeliverySettings,
+  );
+  private readonly bPaymentRepo = AppDataSource.getRepository(
+    BusinessPaymentMethods,
+  );
   private readonly bPhotosRepo = AppDataSource.getRepository(BusinessPhotos);
 
   async list() {
@@ -119,14 +124,16 @@ export class BusinessService {
       estimated_delivery_min,
     } = body;
 
-    if (business_name !== undefined) business.businessName = business_name || null;
+    if (business_name !== undefined)
+      business.businessName = business_name || null;
     if (phone !== undefined) business.phone = phone || null;
     if (email !== undefined) business.email = email || null;
     if (logo_url !== undefined) business.logoUrl = logo_url || null;
     if (banner_url !== undefined) business.bannerUrl = banner_url || null;
     if (typeof is_open === "boolean") business.isOpen = is_open;
     if (typeof has_delivery === "boolean") business.hasDelivery = has_delivery;
-    if (prep_time_min !== undefined) business.prepTimeMin = Number(prep_time_min) || 0;
+    if (prep_time_min !== undefined)
+      business.prepTimeMin = Number(prep_time_min) || 0;
     if (estimated_delivery_min !== undefined) {
       business.estimatedDeliveryMin = Number(estimated_delivery_min) || 0;
     }
@@ -224,7 +231,9 @@ export class BusinessService {
       );
 
       const user = await userRepo.findOne({ where: { userId: id } });
-      const ownerRole = await roleRepo.findOne({ where: { roleName: "owner" } });
+      const ownerRole = await roleRepo.findOne({
+        where: { roleName: "owner" },
+      });
       if (user && ownerRole && user.roleId !== ownerRole.roleId) {
         user.roleId = ownerRole.roleId;
         await userRepo.save(user);
@@ -245,10 +254,7 @@ export class BusinessService {
     return this.getById(businessId);
   }
 
-  async updateSchedules(
-    businessId: number,
-    schedules: ScheduleInput[] = [],
-  ) {
+  async updateSchedules(businessId: number, schedules: ScheduleInput[] = []) {
     await this.scheduleRepo.delete({ businessId });
 
     if (schedules.length > 0) {
@@ -300,7 +306,8 @@ export class BusinessService {
           this.bPaymentRepo.create({
             businessId,
             method: typeof method === "string" ? method : method.method,
-            isActive: typeof method === "string" ? true : method.isActive !== false,
+            isActive:
+              typeof method === "string" ? true : method.isActive !== false,
           }),
         ),
       );

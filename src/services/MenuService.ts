@@ -79,11 +79,13 @@ export class MenuService {
     });
     if (!menu) throw new HttpError(404, "Producto no encontrado");
 
-    const { item_name, description, price, image_url, category, is_available } = body;
+    const { item_name, description, price, image_url, category, is_available } =
+      body;
 
     if (item_name !== undefined) {
       const name = String(item_name).trim();
-      if (!name) throw new HttpError(400, "El nombre del producto es requerido");
+      if (!name)
+        throw new HttpError(400, "El nombre del producto es requerido");
       menu.itemName = name;
     }
     if (description !== undefined) {
