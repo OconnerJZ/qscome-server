@@ -11,12 +11,7 @@ import { BusinessPhotos } from "../entities/BusinessPhotos";
 import { Users } from "../entities/Users";
 import { UserRoles } from "../entities/UserRoles";
 import { HttpError } from "../utils/httpError";
-import {
-  formatBusinessCard,
-  formatOwnerBusinessCard,
-  formatBusinessDetail,
-  formatMenuItem,
-} from "../serializers/business.serializer";
+import { formatBusinessCard, formatOwnerBusinessCard, formatBusinessDetail, formatMenuItem } from "../serializers/business.serializer";
 
 export interface CreateBusinessInput {
   id: number;
@@ -55,30 +50,19 @@ export class BusinessService {
   private readonly menuRepo = AppDataSource.getRepository(Menus);
   private readonly locationRepo = AppDataSource.getRepository(Locations);
   private readonly scheduleRepo = AppDataSource.getRepository(BusinessSchedule);
-  private readonly bFoodTypesRepo =
-    AppDataSource.getRepository(BusinessFoodTypes);
+  private readonly bFoodTypesRepo = AppDataSource.getRepository(BusinessFoodTypes);
   private readonly bOwnerRepo = AppDataSource.getRepository(BusinessOwners);
-  private readonly bDeliveryRepo = AppDataSource.getRepository(
-    BusinessDeliverySettings,
-  );
-  private readonly bPaymentRepo = AppDataSource.getRepository(
-    BusinessPaymentMethods,
-  );
+  private readonly bDeliveryRepo = AppDataSource.getRepository(BusinessDeliverySettings);
+  private readonly bPaymentRepo = AppDataSource.getRepository(BusinessPaymentMethods);
   private readonly bPhotosRepo = AppDataSource.getRepository(BusinessPhotos);
 
   async list() {
-    const businesses = await this.businessRepo.find({
-      relations: PROFILE_RELATIONS,
-      take: 50,
-    });
+    const businesses = await this.businessRepo.find({ relations: PROFILE_RELATIONS, take: 50 });
     return businesses.map(formatBusinessCard);
   }
 
   async getById(businessId: number) {
-    const business = await this.businessRepo.findOne({
-      where: { businessId },
-      relations: [...PROFILE_RELATIONS, "menus"],
-    });
+    const business = await this.businessRepo.findOne({ where: { businessId }, relations: [...PROFILE_RELATIONS, "menus"] });
     if (!business) throw new HttpError(404, "Negocio no encontrado");
     return formatBusinessDetail(business);
   }
@@ -101,10 +85,7 @@ export class BusinessService {
   }
 
   async getMenu(businessId: number) {
-    const menus = await this.menuRepo.find({
-      where: { businessId, isAvailable: true, isArchived: false },
-      order: { category: "ASC", itemName: "ASC" },
-    });
+    const menus = await this.menuRepo.find({ where: { businessId, isAvailable: true, isArchived: false }, order: { category: "ASC", itemName: "ASC" } });
     return menus.map(formatMenuItem);
   }
 
@@ -118,42 +99,32 @@ export class BusinessService {
       email,
       logo_url,
       banner_url,
+      facebook_url,
+      instagram_url,
       is_open,
       has_delivery,
       prep_time_min,
       estimated_delivery_min,
     } = body;
 
-    if (business_name !== undefined)
-      business.businessName = business_name || null;
+    if (business_name !== undefined) business.businessName = business_name || null;
     if (phone !== undefined) business.phone = phone || null;
     if (email !== undefined) business.email = email || null;
     if (logo_url !== undefined) business.logoUrl = logo_url || null;
     if (banner_url !== undefined) business.bannerUrl = banner_url || null;
+    if (facebook_url !== undefined) business.facebookUrl = String(facebook_url || "").trim() || null;
+    if (instagram_url !== undefined) business.instagramUrl = String(instagram_url || "").trim() || null;
     if (typeof is_open === "boolean") business.isOpen = is_open;
     if (typeof has_delivery === "boolean") business.hasDelivery = has_delivery;
-    if (prep_time_min !== undefined)
-      business.prepTimeMin = Number(prep_time_min) || 0;
-    if (estimated_delivery_min !== undefined) {
-      business.estimatedDeliveryMin = Number(estimated_delivery_min) || 0;
-    }
+    if (prep_time_min !== undefined) business.prepTimeMin = Number(prep_time_min) || 0;
+    if (estimated_delivery_min !== undefined) business.estimatedDeliveryMin = Number(estimated_delivery_min) || 0;
 
     await this.businessRepo.save(business);
     return this.getById(businessId);
   }
 
   async create(input: CreateBusinessInput) {
-    const {
-      business_name,
-      phone,
-      logo_url,
-      locale,
-      schedule,
-      has_delivery,
-      food_type,
-      id,
-    } = input;
-
+    const { business_name, phone, logo_url, locale, schedule, has_delivery, food_type, id } = input;
     if (!id) throw new HttpError(400, "Usuario inválido");
 
     const businessId = await AppDataSource.transaction(async (manager) => {
@@ -167,73 +138,29 @@ export class BusinessService {
       const userRepo = manager.getRepository(Users);
       const roleRepo = manager.getRepository(UserRoles);
 
-      const business = businessRepo.create({
-        businessName: business_name,
-        phone,
-        logoUrl: logo_url,
-        isOpen: true,
-        hasDelivery: has_delivery,
-      });
+      const business = businessRepo.create({ businessName: business_name, phone, logoUrl: logo_url, isOpen: true, hasDelivery: has_delivery });
       await businessRepo.save(business);
 
-      if (locale) {
-        await locationRepo.save(
-          locationRepo.create({ businessId: business.businessId, ...locale }),
-        );
-      }
+      if (locale) await locationRepo.save(locationRepo.create({ businessId: business.businessId, ...locale }));
 
       if (schedule?.length) {
         const scheduleRows = schedule.map((raw) => {
           const item = raw as unknown as ScheduleInput;
-          return scheduleRepo.create({
-            businessId: business.businessId,
-            day: item.day,
-            isClosed: item.isClosed ?? false,
-            opened: item.opened ?? null,
-            closed: item.closed ?? null,
-            isHoliday: item.isHoliday ?? false,
-          });
+          return scheduleRepo.create({ businessId: business.businessId, day: item.day, isClosed: item.isClosed ?? false, opened: item.opened ?? null, closed: item.closed ?? null, isHoliday: item.isHoliday ?? false });
         });
         await scheduleRepo.save(scheduleRows);
       }
 
       if (food_type?.length) {
-        await bFoodTypesRepo.save(
-          food_type.map((foodTypeId) =>
-            bFoodTypesRepo.create({
-              businessId: business.businessId,
-              foodTypeId,
-            }),
-          ),
-        );
+        await bFoodTypesRepo.save(food_type.map((foodTypeId) => bFoodTypesRepo.create({ businessId: business.businessId, foodTypeId })));
       }
 
-      await bDeliveryRepo.save(
-        bDeliveryRepo.create({ businessId: business.businessId }),
-      );
-
-      await bPaymentRepo.save(
-        PAYMENT_METHODS.map((method: PaymentType) =>
-          bPaymentRepo.create({
-            businessId: business.businessId,
-            method,
-            isActive: method === "cash" || method === "transfer",
-          }),
-        ),
-      );
-
-      await bOwnerRepo.save(
-        bOwnerRepo.create({
-          userId: id,
-          businessId: business.businessId,
-          roleInBusiness: "owner",
-        }),
-      );
+      await bDeliveryRepo.save(bDeliveryRepo.create({ businessId: business.businessId }));
+      await bPaymentRepo.save(PAYMENT_METHODS.map((method: PaymentType) => bPaymentRepo.create({ businessId: business.businessId, method, isActive: method === "cash" || method === "transfer" })));
+      await bOwnerRepo.save(bOwnerRepo.create({ userId: id, businessId: business.businessId, roleInBusiness: "owner" }));
 
       const user = await userRepo.findOne({ where: { userId: id } });
-      const ownerRole = await roleRepo.findOne({
-        where: { roleName: "owner" },
-      });
+      const ownerRole = await roleRepo.findOne({ where: { roleName: "owner" } });
       if (user && ownerRole && user.roleId !== ownerRole.roleId) {
         user.roleId = ownerRole.roleId;
         await userRepo.save(user);
@@ -248,7 +175,6 @@ export class BusinessService {
   async updateLocation(businessId: number, body: any) {
     let row = await this.locationRepo.findOne({ where: { businessId } });
     if (!row) row = this.locationRepo.create({ businessId });
-
     Object.assign(row, body);
     await this.locationRepo.save(row);
     return this.getById(businessId);
@@ -256,29 +182,16 @@ export class BusinessService {
 
   async updateSchedules(businessId: number, schedules: ScheduleInput[] = []) {
     await this.scheduleRepo.delete({ businessId });
-
     if (schedules.length > 0) {
-      const rows: BusinessSchedule[] = schedules.map((schedule) =>
-        this.scheduleRepo.create({
-          businessId,
-          day: schedule.day,
-          isClosed: schedule.isClosed ?? false,
-          opened: schedule.opened ?? null,
-          closed: schedule.closed ?? null,
-          isHoliday: schedule.isHoliday ?? false,
-        }),
-      );
-
+      const rows: BusinessSchedule[] = schedules.map((schedule) => this.scheduleRepo.create({ businessId, day: schedule.day, isClosed: schedule.isClosed ?? false, opened: schedule.opened ?? null, closed: schedule.closed ?? null, isHoliday: schedule.isHoliday ?? false }));
       await this.scheduleRepo.save(rows);
     }
-
     return this.getById(businessId);
   }
 
   async updateDeliverySettings(businessId: number, body: any) {
     let row = await this.bDeliveryRepo.findOne({ where: { businessId } });
     if (!row) row = this.bDeliveryRepo.create({ businessId });
-
     const fieldMap: Record<string, string> = {
       delivery_radius_km: "deliveryRadiusKm",
       delivery_fee: "deliveryFee",
@@ -286,66 +199,34 @@ export class BusinessService {
       estimated_time_min: "estimatedTimeMin",
       use_own_delivery: "useOwnDelivery",
     };
-
-    Object.entries(fieldMap).forEach(([from, to]) => {
-      if (body[from] !== undefined) {
-        (row as any)[to] = body[from];
-      }
-    });
-
+    Object.entries(fieldMap).forEach(([from, to]) => { if (body[from] !== undefined) (row as any)[to] = body[from]; });
     await this.bDeliveryRepo.save(row);
     return this.getById(businessId);
   }
 
   async updatePaymentMethods(businessId: number, methods: any[] = []) {
     await this.bPaymentRepo.delete({ businessId });
-
     if (methods.length) {
-      await this.bPaymentRepo.save(
-        methods.map((method) =>
-          this.bPaymentRepo.create({
-            businessId,
-            method: typeof method === "string" ? method : method.method,
-            isActive:
-              typeof method === "string" ? true : method.isActive !== false,
-          }),
-        ),
-      );
+      await this.bPaymentRepo.save(methods.map((method) => this.bPaymentRepo.create({ businessId, method: typeof method === "string" ? method : method.method, isActive: typeof method === "string" ? true : method.isActive !== false })));
     }
-
     return this.getById(businessId);
   }
 
   async updateFoodTypes(businessId: number, ids: number[] = []) {
     await this.bFoodTypesRepo.delete({ businessId });
-
-    if (ids.length) {
-      await this.bFoodTypesRepo.save(
-        ids.map((foodTypeId) =>
-          this.bFoodTypesRepo.create({ businessId, foodTypeId }),
-        ),
-      );
-    }
-
+    if (ids.length) await this.bFoodTypesRepo.save(ids.map((foodTypeId) => this.bFoodTypesRepo.create({ businessId, foodTypeId })));
     return this.getById(businessId);
   }
 
   async addPhoto(businessId: number, photoUrl: string) {
     if (!photoUrl) throw new HttpError(400, "photo_url requerido");
-
-    const photo = await this.bPhotosRepo.save(
-      this.bPhotosRepo.create({ businessId, photoUrl }),
-    );
-
+    const photo = await this.bPhotosRepo.save(this.bPhotosRepo.create({ businessId, photoUrl }));
     return { id: photo.photoId, photoUrl: photo.photoUrl };
   }
 
   async deletePhoto(businessId: number, photoId: number) {
-    const photo = await this.bPhotosRepo.findOne({
-      where: { photoId, businessId },
-    });
+    const photo = await this.bPhotosRepo.findOne({ where: { photoId, businessId } });
     if (!photo) throw new HttpError(404, "Foto no encontrada");
-
     await this.bPhotosRepo.remove(photo);
   }
 }
