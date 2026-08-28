@@ -30,7 +30,7 @@ export class KitchenService {
 
   async updateItemStatus(orderId: number, detailId: number, status: KitchenItemStatus, actor: KitchenActor = {}) {
     if (!KITCHEN_STATUSES.includes(status)) throw new HttpError(400, "Estado de cocina inválido");
-    if (!["owner", "admin"].includes(actor.role || "")) throw new HttpError(403, "Sólo el negocio puede actualizar la preparación de productos");
+    if (!["owner", "admin", "primary_owner", "co_owner", "manager", "kitchen"].includes(actor.role || "")) throw new HttpError(403, "No tienes permiso para actualizar la preparación");
 
     const detail = await this.detailRepo.findOne({ where: { orderDetailId: detailId }, relations: ["order"] });
     if (!detail || Number(detail.orderId) !== Number(orderId)) throw new HttpError(404, "Producto de la orden no encontrado");

@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from "express";
-import * as jwt from "jsonwebtoken";
+import { AuthTokenPayload, verifyAuthToken } from "../utils/authToken";
 
 export interface AuthRequest extends Request {
-    user?: any;
+    user?: AuthTokenPayload;
+    businessAccess?: { businessId: number; role: string; permissions: string[] };
 }
 
 export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -13,8 +14,7 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
             return res.status(401).json({ message: "Token no proporcionado" });
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret_key");
-        req.user = decoded;
+        req.user = verifyAuthToken(token);
         next();
     } catch(error) {
         return res.status(401).json({ message: "Token inválido o expirado " + error });

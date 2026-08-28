@@ -10,6 +10,7 @@ import { AppDataSource } from "../utils/db";
 import { BusinessOwners } from "../entities/BusinessOwners";
 import { Orders } from "../entities/Orders";
 import { Menus } from "../entities/Menus";
+import { BusinessPermission, getBusinessMembership } from "../security/businessAccess";
 
 export const isAdmin = (user: any): boolean => user?.role === "admin";
 
@@ -29,6 +30,82 @@ export const ownsBusiness = async (
   });
   return !!link;
 };
+
+const authorizeBusinessPermission = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+  businessId: number | null,
+  permission: BusinessPermission,
+) => {
+  if (!businessId) return res.status(400).json({ success: false, message: "businessId inválido" });
+  if (isAdmin(req.user)) {
+    req.businessAccess = { businessId, role: "admin", permissions: [permission] };
+    return next();
+  }
+  const access = await getBusinessMembership(Number(req.user?.userId), businessId);
+  if (!access || !access.permissions.includes(permission)) {
+    return res.status(403).json({ success: false, message: "No tienes permiso para realizar esta acción" });
+  }
+  req.businessAccess = { businessId, role: access.role, permissions: access.permissions };
+  return next();
+};
+
+export const requireBusinessPermission = (permission: BusinessPermission, param = "businessId") =>
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try { return await authorizeBusinessPermission(req, res, next, parseId(req.params[param]), permission); }
+    catch (error: any) { return res.status(500).json({ success: false, message: error.message }); }
+  };
+
+export const requireBusinessPermissionFromBody = (permission: BusinessPermission, field = "business_id") =>
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try { return await authorizeBusinessPermission(req, res, next, parseId(req.body?.[field]), permission); }
+    catch (error: any) { return res.status(500).json({ success: false, message: error.message }); }
+  };
+
+export const requireOrderBusinessPermission = (permission: BusinessPermission, param = "id") =>
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const orderId = parseId(req.params[param]);
+      if (!orderId) return res.status(400).json({ success: false, message: "orderId inválido" });
+      const order = await AppDataSource.getRepository(Orders).findOne({ where: { orderId } });
+      if (!order) return res.status(404).json({ success: false, message: "Orden no encontrada" });
+      return await authorizeBusinessPermission(req, res, next, Number(order.businessId), permission);
+    } catch (error: any) { return res.status(500).json({ success: false, message: error.message }); }
+  };
+
+export const requireOrderStatusAccess = (param = "id") =>
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const orderId = parseId(req.params[param]);
+      if (!orderId) return res.status(400).json({ success: false, message: "orderId inválido" });
+      const order = await AppDataSource.getRepository(Orders).findOne({ where: { orderId } });
+      if (!order) return res.status(404).json({ success: false, message: "Orden no encontrada" });
+      if (order.userId === req.user?.userId && req.body?.status === "cancelled") return next();
+      return await authorizeBusinessPermission(req, res, next, Number(order.businessId), "orders.accept");
+    } catch (error: any) { return res.status(500).json({ success: false, message: error.message }); }
+  };
+
+export const requireOrderCustomerOwnership = (param = "id") =>
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const orderId = parseId(req.params[param]);
+    if (!orderId) return res.status(400).json({ success: false, message: "orderId inválido" });
+    const order = await AppDataSource.getRepository(Orders).findOne({ where: { orderId } });
+    if (!order) return res.status(404).json({ success: false, message: "Orden no encontrada" });
+    if (isAdmin(req.user) || order.userId === req.user?.userId) return next();
+    return res.status(403).json({ success: false, message: "Sólo el cliente puede editar su orden" });
+  };
+
+export const requireMenuBusinessPermission = (permission: BusinessPermission, param = "id") =>
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const menuId = parseId(req.params[param]);
+      if (!menuId) return res.status(400).json({ success: false, message: "menuId inválido" });
+      const menu = await AppDataSource.getRepository(Menus).findOne({ where: { menuId } });
+      if (!menu) return res.status(404).json({ success: false, message: "Producto no encontrado" });
+      return await authorizeBusinessPermission(req, res, next, Number(menu.businessId), permission);
+    } catch (error: any) { return res.status(500).json({ success: false, message: error.message }); }
+  };
 
 /** Dueño del negocio en req.params[param] (admin pasa). */
 export const requireBusinessOwnership =

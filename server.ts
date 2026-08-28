@@ -18,6 +18,7 @@ import uploadRoutes from "./src/routes/uploadRoutes";
 import catalogRoutes from "./src/routes/catalogRoutes";
 import statsRoutes from "./src/routes/statsRoutes";
 import { initializeSocket } from "./src/utils/socket";
+import { corsOrigin } from "./src/utils/cors";
 
 dotenv.config({ debug: false });
 
@@ -28,7 +29,7 @@ initializeSocket(httpServer);
 // Middlewares globales
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "*",
+    origin: corsOrigin,
     credentials: true,
   })
 );

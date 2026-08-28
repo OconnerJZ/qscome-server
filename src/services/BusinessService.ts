@@ -12,6 +12,7 @@ import { Users } from "../entities/Users";
 import { UserRoles } from "../entities/UserRoles";
 import { HttpError } from "../utils/httpError";
 import { formatBusinessCard, formatOwnerBusinessCard, formatBusinessDetail, formatMenuItem } from "../serializers/business.serializer";
+import { normalizeBusinessRole, permissionsForRole } from "../security/businessAccess";
 
 interface ScheduleInput { day: string; isClosed?: boolean | null; opened?: string | null; closed?: string | null; isHoliday?: boolean | null; }
 export interface CreateBusinessInput { id: number; business_name?: string; phone?: string; logo_url?: string; locale?: Record<string, unknown>; schedule?: ScheduleInput[]; has_delivery?: boolean; food_type?: number[]; }
@@ -48,7 +49,11 @@ export class BusinessService {
   async getById(businessId: number) { const business = await this.businessRepo.findOne({ where: { businessId }, relations: [...PROFILE_RELATIONS, "menus"] }); if (!business) throw new HttpError(404, "Negocio no encontrado"); return formatBusinessDetail(business); }
   async getByOwner(ownerId: number) {
     const owned = await this.bOwnerRepo.find({ where: { userId: ownerId }, relations: ["business", "business.locations", "business.businessFoodTypes", "business.businessFoodTypes.foodType", "business.businessSchedules", "business.businessDeliverySettings", "business.businessPaymentMethods", "business.businessPhotos"] });
-    return owned.map((bo) => formatOwnerBusinessCard(bo.business));
+    return owned.map((bo) => ({
+      ...formatOwnerBusinessCard(bo.business),
+      membershipRole: normalizeBusinessRole(bo.roleInBusiness),
+      permissions: permissionsForRole(bo.roleInBusiness),
+    }));
   }
   async getMenu(businessId: number) {
     const menus = await this.menuRepo.find({
@@ -90,7 +95,7 @@ export class BusinessService {
       if (food_type?.length) await bFoodTypesRepo.save(food_type.map((foodTypeId) => bFoodTypesRepo.create({ businessId: business.businessId, foodTypeId })));
       await bDeliveryRepo.save(bDeliveryRepo.create({ businessId: business.businessId }));
       await bPaymentRepo.save(PAYMENT_METHODS.map((m: PaymentType) => bPaymentRepo.create({ businessId: business.businessId, method: m, isActive: m === "cash" || m === "transfer" })));
-      await bOwnerRepo.save(bOwnerRepo.create({ userId: id, businessId: business.businessId, roleInBusiness: "owner" }));
+      await bOwnerRepo.save(bOwnerRepo.create({ userId: id, businessId: business.businessId, roleInBusiness: "primary_owner" }));
       const user = await userRepo.findOne({ where: { userId: id } }); const ownerRole = await roleRepo.findOne({ where: { roleName: "owner" } });
       if (user && ownerRole && user.roleId !== ownerRole.roleId) { user.roleId = ownerRole.roleId; await userRepo.save(user); }
       return business.businessId;

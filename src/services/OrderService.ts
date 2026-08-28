@@ -149,7 +149,7 @@ export class OrderService {
       const currentOrder = await orderRepo.findOne({ where: { orderId } });
       if (!currentOrder) throw new HttpError(404, "Orden no encontrada");
       const previousStatus = currentOrder.status;
-      const isPrivilegedRole = actor.role === "admin" || actor.role === "owner";
+      const isPrivilegedRole = ["admin", "owner", "primary_owner", "co_owner", "manager", "cashier"].includes(actor.role || "");
       const isCustomerActor = actor.userId === currentOrder.userId && !isPrivilegedRole;
       if (isCustomerActor) {
         if (status !== "cancelled") throw new HttpError(403, "El cliente sólo puede cancelar su orden");

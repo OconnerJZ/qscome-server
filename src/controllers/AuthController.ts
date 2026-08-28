@@ -4,7 +4,8 @@ import { Users } from "../entities/Users";
 import { UserRoles } from "../entities/UserRoles";
 import { OAuth2Client } from "google-auth-library";
 import * as bcrypt from "bcrypt";
-import * as jwt from "jsonwebtoken";
+import { signAuthToken } from "../utils/authToken";
+import { normalizeBusinessRole, permissionsForRole } from "../security/businessAccess";
 
 export class AuthController {
   private readonly userRepo = AppDataSource.getRepository(Users);
@@ -54,10 +55,8 @@ export class AuthController {
       await this.userRepo.save(user);
 
       // Generar token
-      const token = jwt.sign(
+      const token = signAuthToken(
         { userId: user.userId, email: user.email, role: userRole.roleName },
-        process.env.JWT_SECRET || "secret_key",
-        { expiresIn: process.env.JWT_EXPIRES_IN || "7d" } as jwt.SignOptions
       );
 
       return res.status(201).json({
@@ -115,14 +114,12 @@ export class AuthController {
       }
 
       // Generar token
-      const token = jwt.sign(
+      const token = signAuthToken(
         {
           userId: user.userId,
           email: user.email,
           role: user.role?.roleName,
         },
-        process.env.JWT_SECRET || "secret_key",
-        { expiresIn: process.env.JWT_EXPIRES_IN || "7d" } as jwt.SignOptions
       );
 
       return res.json({
@@ -221,14 +218,12 @@ export class AuthController {
       }
 
       // Generar token
-      const token = jwt.sign(
+      const token = signAuthToken(
         {
           userId: user.userId,
           email: user.email,
           role: user.role?.roleName || "customer",
         },
-        process.env.JWT_SECRET || "secret_key",
-        { expiresIn: process.env.JWT_EXPIRES_IN || "7d" } as jwt.SignOptions
       );
 
       return res.json({
@@ -288,7 +283,7 @@ export class AuthController {
 
       const user = await this.userRepo.findOne({
         where: { userId },
-        relations: ["role"],
+        relations: ["role", "businessOwners", "businessOwners.business"],
       });
 
       if (!user) {
@@ -308,6 +303,12 @@ export class AuthController {
           avatar: user.avatarUrl,
           role: user.role?.roleName,
           provider: user.authProvider,
+          businesses: (user.businessOwners || []).map((membership) => ({
+            id: membership.businessId,
+            name: membership.business?.businessName,
+            membershipRole: normalizeBusinessRole(membership.roleInBusiness),
+            permissions: permissionsForRole(membership.roleInBusiness),
+          })),
         },
       });
     } catch (error: any) {

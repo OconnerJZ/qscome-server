@@ -1,16 +1,26 @@
 import { Router } from "express";
 import { BusinessController } from "../controllers/BusinessController";
 import { authenticate } from "../middlewares/authMiddleware";
-import { authorize } from "../middlewares/roleMiddleware";
-import { requireBusinessOwnership } from "../middlewares/ownership";
+import { requireBusinessPermission, requireSelfOrAdmin } from "../middlewares/ownership";
 import { validateDto } from "../middlewares/validateDto";
 import { CreateBusinessDto } from "../dtos/business.dto";
+import { BusinessTeamController } from "../controllers/BusinessTeamController";
 
 const router = Router();
 const businessController = new BusinessController();
+const teamController = new BusinessTeamController();
 
 router.get("/", businessController.getAll);
-router.get("/owner/:ownerId", businessController.getByOwner);
+router.get("/owner/:ownerId", authenticate, requireSelfOrAdmin("ownerId"), businessController.getByOwner);
+router.get("/invitations/:token", authenticate, teamController.preview);
+router.post("/invitations/:token/accept", authenticate, teamController.accept);
+router.post("/invitations/accept-code", authenticate, teamController.acceptCode);
+router.get("/:id/team", authenticate, requireBusinessPermission("team.manage", "id"), teamController.list);
+router.post("/:id/invitations", authenticate, requireBusinessPermission("team.manage", "id"), teamController.invite);
+router.delete("/:id/invitations/:invitationId", authenticate, requireBusinessPermission("team.manage", "id"), teamController.cancel);
+router.patch("/:id/members/:userId", authenticate, requireBusinessPermission("team.manage", "id"), teamController.updateMember);
+router.delete("/:id/members/:userId", authenticate, requireBusinessPermission("team.manage", "id"), teamController.removeMember);
+router.post("/:id/ownership-transfers", authenticate, requireBusinessPermission("ownership.transfer", "id"), teamController.transfer);
 router.get("/:id/menu", businessController.getMenu);
 router.get("/:id", businessController.getById);
 
@@ -26,8 +36,7 @@ router.post(
 
 const ownerOnly = [
   authenticate,
-  authorize("admin", "owner"),
-  requireBusinessOwnership("id"),
+  requireBusinessPermission("settings.update", "id"),
 ] as const;
 
 router.put("/:id", ...ownerOnly, businessController.update);

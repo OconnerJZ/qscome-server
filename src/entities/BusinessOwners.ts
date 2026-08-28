@@ -25,10 +25,10 @@ export class BusinessOwners {
   @Column("enum", {
     name: "role_in_business",
     nullable: true,
-    enum: ["owner", "manager", "staff"],
-    default: () => "'owner'",
+    enum: ["primary_owner", "co_owner", "manager", "kitchen", "cashier"],
+    default: () => "'primary_owner'",
   })
-  roleInBusiness!: "owner" | "manager" | "staff" | null;
+  roleInBusiness!: "primary_owner" | "co_owner" | "manager" | "kitchen" | "cashier" | null;
 
   @Column("datetime", {
     name: "created_at",

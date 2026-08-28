@@ -46,9 +46,10 @@ export class OrderController {
   updatePendingOrder = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const actor = (req as any).user;
+      const businessRole = (req as any).businessAccess?.role;
       const data = await this.pendingOrderService.replaceItems(
         Number.parseInt(req.params.id, 10), req.body.items, Number(req.body.expectedVersion),
-        { userId: actor?.userId, role: actor?.role },
+        { userId: actor?.userId, role: businessRole || actor?.role },
       );
       res.json({ success: true, message: "Orden actualizada", data });
     } catch (error) { next(error); }
@@ -57,9 +58,10 @@ export class OrderController {
   updateStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const actor = (req as any).user;
+      const businessRole = (req as any).businessAccess?.role;
       const orderId = Number.parseInt(req.params.id, 10);
       if (req.body.status === "ready") await this.kitchenService.assertAllItemsReady(orderId);
-      const data = await this.service.updateStatus(orderId, req.body.status, req.body.note, { userId: actor?.userId, role: actor?.role });
+      const data = await this.service.updateStatus(orderId, req.body.status, req.body.note, { userId: actor?.userId, role: businessRole || actor?.role });
       res.json({ success: true, message: "Estado actualizado", data });
     } catch (error) { next(error); }
   };
@@ -67,9 +69,10 @@ export class OrderController {
   updateKitchenItemStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const actor = (req as any).user;
+      const businessRole = (req as any).businessAccess?.role;
       const data = await this.kitchenService.updateItemStatus(
         Number.parseInt(req.params.id, 10), Number.parseInt(req.params.detailId, 10), req.body.status as KitchenItemStatus,
-        { userId: actor?.userId, role: actor?.role },
+        { userId: actor?.userId, role: businessRole || actor?.role },
       );
       res.json({ success: true, message: "Producto actualizado", data });
     } catch (error) { next(error); }

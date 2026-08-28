@@ -9,7 +9,7 @@ export const authorize = (...allowedRoles: string[]) => {
 
         const userRole = req.user.role;
 
-        if (!allowedRoles.includes(userRole)) {
+        if (!userRole || !allowedRoles.includes(userRole)) {
             return res.status(403).json({ message: "No tienes permiso para realizar esta acción" });
         }
         
