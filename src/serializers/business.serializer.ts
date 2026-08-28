@@ -8,6 +8,11 @@ const formatLocation = (b: Business) => { const location = b.locations?.[0]; if 
 const formatSchedules = (b: Business) => b.businessSchedules?.map((schedule) => ({ id: schedule.scheduleId, day: schedule.day, isClosed: Boolean(schedule.isClosed), opened: schedule.opened, closed: schedule.closed, isHoliday: Boolean(schedule.isHoliday) })) || [];
 const formatDeliverySettings = (b: Business) => { const settings = b.businessDeliverySettings?.[0]; if (!settings) return null; return { deliveryRadiusKm: Number(settings.deliveryRadiusKm || 0), deliveryFee: Number(settings.deliveryFee || 0), minOrderAmount: Number(settings.minOrderAmount || 0), estimatedTimeMin: Number(settings.estimatedTimeMin || 0), useOwnDelivery: Boolean(settings.useOwnDelivery) }; };
 const formatPaymentMethods = (b: Business) => b.businessPaymentMethods?.map((method) => ({ method: method.method, active: Boolean(method.isActive), config: method.configJson })) || [];
+const formatSocial = (b: Business) => ({
+  facebook: b.facebookUrl || "",
+  instagram: b.instagramUrl || "",
+  whats: b.phone ? `https://wa.me/${b.phone.replace(/\\D/g, "")}` : "",
+});
 
 const formatBusinessProfile = (b: Business) => ({
   id: b.businessId, name: b.businessName, title: b.businessName, phone: b.phone, email: b.email,
@@ -15,7 +20,7 @@ const formatBusinessProfile = (b: Business) => ({
   open: Boolean(b.isOpen), isOpen: Boolean(b.isOpen), hasDelivery: Boolean(b.hasDelivery), prepTimeMin: b.prepTimeMin,
   estimatedDeliveryMin: b.estimatedDeliveryMin, location: formatLocation(b), locations: b.locations || [], schedules: formatSchedules(b),
   tags: buildTags(b), foodTypes: b.businessFoodTypes?.map((ft) => ({ id: ft.foodTypeId, name: ft.foodType?.typeName })) || [],
-  deliverySettings: formatDeliverySettings(b), paymentMethods: formatPaymentMethods(b), createdAt: b.createdAt, updatedAt: b.updatedAt,
+  deliverySettings: formatDeliverySettings(b), paymentMethods: formatPaymentMethods(b), social: formatSocial(b), createdAt: b.createdAt, updatedAt: b.updatedAt,
 });
 
 export const formatBusinessCard = (b: Business) => ({ ...formatBusinessProfile(b), likes: 0, social: { facebook: "", instagram: "", whats: b.phone ? `https://wa.me/${b.phone.replace(/\D/g, "")}` : "" } });
