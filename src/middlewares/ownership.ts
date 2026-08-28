@@ -290,6 +290,21 @@ export const requirePaymentAccess =
     }
   };
 
+/** Datos de transferencia: cliente de la orden o equipo con payments.review. */
+export const requireOrderPaymentAccess = (param = "id") =>
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const orderId = parseId(req.params[param]);
+      if (!orderId) return res.status(400).json({ success: false, message: "Orden inválida" });
+      const order = await AppDataSource.getRepository(Orders).findOne({ where: { orderId } });
+      if (!order) return res.status(404).json({ success: false, message: "Orden no encontrada" });
+      if (isAdmin(req.user) || order.userId === req.user?.userId) return next();
+      return await authorizeBusinessPermission(req, res, next, Number(order.businessId), "payments.review");
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  };
+
 /** El usuario sólo accede a su propio recurso por param (o admin). */
 export const requireSelfOrAdmin =
   (param = "userId") =>

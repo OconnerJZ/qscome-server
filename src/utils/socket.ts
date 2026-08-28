@@ -101,6 +101,11 @@ export const emitKitchenItemUpdate = (businessId: number, userId: number | null 
   console.log(`🍳 Item de cocina actualizado order:${payload?.orderId} detail:${payload?.detailId}`);
 };
 
+export const emitTransferPaymentUpdated = (businessId: number, userId: number, payload: any) => {
+  io.to(`business:${businessId}`).emit("order:transfer_payment_updated", payload);
+  io.to(`user:${userId}`).emit("order:transfer_payment_updated", payload);
+};
+
 export const emitBusinessAccessChanged = async (
   userId: number,
   businessId: number,

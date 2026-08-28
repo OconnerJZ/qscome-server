@@ -6,6 +6,8 @@ import { OrderDetailOptions, OrderModifierState } from "../entities/OrderDetailO
 import { OrderStatusHistory } from "../entities/OrderStatusHistory";
 import { Menus } from "../entities/Menus";
 import { UserAddresses } from "../entities/UserAddresses";
+import { BusinessPaymentMethods } from "../entities/BusinessPaymentMethods";
+import { assertUsableTransferConfig, normalizeTransferBankConfig } from "../security/transferPayment";
 import { HttpError } from "../utils/httpError";
 import { formatOrder, getStatusLabel, isValidStatus } from "../serializers/order.serializer";
 import { emitNewOrder, emitOrderStatusUpdate } from "../utils/socket";
@@ -15,6 +17,7 @@ export interface CreateOrderModifier { choiceId: number; state?: OrderModifierSt
 export interface CreateOrderItem { id: number; quantity: number; note?: string | null; price?: number; modifiers?: CreateOrderModifier[]; }
 export interface CreateOrderInput {
   userId: number; businessId: number; items: CreateOrderItem[]; total?: number; orderType?: "pickup" | "delivery";
+  paymentMethod?: "cash" | "card" | "wallet" | "transfer";
   customerName?: string; customerPhone?: string; deliveryAddress?: string; deliveryAddressId?: number | null;
   deliveryLocation?: { latitude?: number; longitude?: number; city?: string; postalCode?: string; state?: string; } | null;
   notes?: string;
@@ -76,11 +79,11 @@ export class OrderService {
   private readonly auditService = new OrderAuditService();
 
   async list() {
-    const orders = await this.orderRepo.find({ relations: ["user", "business", "orderDetails", "orderDetails.menu", "orderDetails.orderDetailOptions"], order: { createdAt: "DESC" }, take: 100 });
+    const orders = await this.orderRepo.find({ relations: ["user", ...DETAIL_RELATIONS], order: { createdAt: "DESC" }, take: 100 });
     return orders.map(formatOrder);
   }
   async getById(orderId: number) {
-    const order = await this.orderRepo.findOne({ where: { orderId }, relations: ["user", "business", "orderDetails", "orderDetails.menu", "orderDetails.orderDetailOptions", "orderStatusHistories"] });
+    const order = await this.orderRepo.findOne({ where: { orderId }, relations: ["user", ...DETAIL_RELATIONS] });
     if (!order) throw new HttpError(404, "Orden no encontrada");
     return formatOrder(order);
   }
@@ -88,7 +91,7 @@ export class OrderService {
   async getByBusiness(businessId: number) { return (await this.orderRepo.find({ where: { businessId }, relations: ["user", "orderDetails", "orderDetails.menu", "orderDetails.orderDetailOptions", "orderStatusHistories"], order: { createdAt: "DESC" } })).map(formatOrder); }
 
   async create(input: CreateOrderInput) {
-    const { userId, businessId, items, orderType = "pickup", customerName, customerPhone, deliveryAddress, deliveryAddressId, deliveryLocation, notes } = input;
+    const { userId, businessId, items, orderType = "pickup", paymentMethod = "cash", customerName, customerPhone, deliveryAddress, deliveryAddressId, deliveryLocation, notes } = input;
     const normalizedBusinessId = Number(businessId);
     if (!userId) throw new HttpError(401, "Usuario no autenticado");
     if (!Number.isInteger(normalizedBusinessId) || normalizedBusinessId < 1) throw new HttpError(400, "Negocio inválido");
@@ -97,6 +100,16 @@ export class OrderService {
 
     const newOrderId = await AppDataSource.transaction(async (manager) => {
       const orderRepo = manager.getRepository(Orders), detailRepo = manager.getRepository(OrderDetails), detailOptionRepo = manager.getRepository(OrderDetailOptions), historyRepo = manager.getRepository(OrderStatusHistory), menuRepo = manager.getRepository(Menus);
+      const configuredMethod = await manager.getRepository(BusinessPaymentMethods).findOne({ where: { businessId: normalizedBusinessId, method: paymentMethod } });
+      if (!configuredMethod?.isActive) throw new HttpError(400, "El método de pago seleccionado no está disponible");
+      let transferBankSnapshotJson: string | null = null;
+      if (paymentMethod === "transfer") {
+        let rawConfig: unknown = {};
+        try { rawConfig = configuredMethod.configJson ? JSON.parse(configuredMethod.configJson) : {}; } catch { rawConfig = {}; }
+        const normalizedConfig = normalizeTransferBankConfig(rawConfig);
+        assertUsableTransferConfig(normalizedConfig);
+        transferBankSnapshotJson = JSON.stringify(normalizedConfig);
+      }
       const normalizedAddressId = orderType === "delivery" && deliveryAddressId ? Number(deliveryAddressId) : null;
       if (normalizedAddressId) {
         const address = await manager.getRepository(UserAddresses).findOne({
@@ -119,7 +132,7 @@ export class OrderService {
         pricedItems.push({ ...item, quantity, itemName: menu.itemName || `Producto ${menu.menuId}`, basePrice, unitPrice, subtotal, modifierSnapshots: snapshots });
       }
       const hasCoords = orderType === "delivery" && deliveryLocation?.latitude != null && deliveryLocation?.longitude != null;
-      const order = orderRepo.create({ userId, businessId: normalizedBusinessId, orderType, customerName, customerPhone, deliveryAddress: orderType === "delivery" ? deliveryAddress : null, deliveryAddressId: normalizedAddressId, deliveryLatitude: hasCoords ? Number(deliveryLocation!.latitude).toFixed(8) : null, deliveryLongitude: hasCoords ? Number(deliveryLocation!.longitude).toFixed(8) : null, deliveryCity: orderType === "delivery" ? deliveryLocation?.city || null : null, deliveryPostalCode: orderType === "delivery" ? deliveryLocation?.postalCode || null : null, orderNotes: notes, total: calculatedTotal.toFixed(2), status: "pending", deliveryStatus: "unassigned", orderDate: new Date() });
+      const order = orderRepo.create({ userId, businessId: normalizedBusinessId, orderType, paymentMethod, transferBankSnapshotJson, customerName, customerPhone, deliveryAddress: orderType === "delivery" ? deliveryAddress : null, deliveryAddressId: normalizedAddressId, deliveryLatitude: hasCoords ? Number(deliveryLocation!.latitude).toFixed(8) : null, deliveryLongitude: hasCoords ? Number(deliveryLocation!.longitude).toFixed(8) : null, deliveryCity: orderType === "delivery" ? deliveryLocation?.city || null : null, deliveryPostalCode: orderType === "delivery" ? deliveryLocation?.postalCode || null : null, orderNotes: notes, total: calculatedTotal.toFixed(2), status: "pending", deliveryStatus: "unassigned", orderDate: new Date() });
       await orderRepo.save(order);
       for (const item of pricedItems) {
         const detail = await detailRepo.save(detailRepo.create({ orderId: order.orderId, menuId: item.id, itemName: item.itemName, unitPrice: item.unitPrice.toFixed(2), quantity: item.quantity, subtotal: item.subtotal.toFixed(2), notes: item.note || null, kitchenStatus: "pending" }));
@@ -143,7 +156,7 @@ export class OrderService {
       return order.orderId;
     });
 
-    const fullOrder = await this.orderRepo.findOne({ where: { orderId: newOrderId }, relations: ["orderDetails", "orderDetails.menu", "orderDetails.orderDetailOptions", "orderStatusHistories"] });
+    const fullOrder = await this.orderRepo.findOne({ where: { orderId: newOrderId }, relations: DETAIL_RELATIONS });
     const formatted = formatOrder(fullOrder!);
     emitNewOrder(normalizedBusinessId, formatted);
     return formatted;

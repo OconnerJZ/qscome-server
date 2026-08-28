@@ -18,6 +18,7 @@ export const formatOrder = (order: Orders) => ({
   customerEmail: order.user?.email,
   status: order.status,
   orderType: order.orderType,
+  paymentMethod: order.paymentMethod || "cash",
   deliveryStatus: order.deliveryStatus,
   deliveryAddress: order.deliveryAddress,
   deliveryAddressId: order.deliveryAddressId,

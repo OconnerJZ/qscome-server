@@ -3,7 +3,7 @@ import { AuthRequest } from "./authMiddleware";
 
 interface RateWindow { count: number; resetsAt: number; }
 
-export const createRateLimiter = ({ limit, windowMs }: { limit: number; windowMs: number }) => {
+export const createRateLimiter = ({ limit, windowMs, message = "Demasiados intentos. Espera antes de volver a intentarlo." }: { limit: number; windowMs: number; message?: string }) => {
   const windows = new Map<string, RateWindow>();
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     const now = Date.now();
@@ -14,9 +14,8 @@ export const createRateLimiter = ({ limit, windowMs }: { limit: number; windowMs
     windows.set(key, window);
     if (window.count > limit) {
       res.setHeader("Retry-After", Math.ceil((window.resetsAt - now) / 1000));
-      return res.status(429).json({ success: false, message: "Demasiados intentos. Espera antes de probar otro código." });
+      return res.status(429).json({ success: false, message });
     }
     return next();
   };
 };
-

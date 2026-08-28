@@ -1,5 +1,6 @@
 import { Business } from "../entities/Business";
 import { Menus } from "../entities/Menus";
+import { isUsableTransferConfig, normalizeTransferBankConfig } from "../security/transferPayment";
 
 const buildTags = (b: Business) => b.businessFoodTypes?.map((ft) => ({ id: ft.foodTypeId, label: ft.foodType?.typeName, color: "warning" })) || [];
 const formatPhotos = (b: Business) => b.businessPhotos?.map((photo) => ({ id: photo.photoId, url: photo.photoUrl })) || [];
@@ -7,7 +8,16 @@ const getCoverImage = (b: Business) => b.bannerUrl || b.businessPhotos?.[0]?.pho
 const formatLocation = (b: Business) => { const location = b.locations?.[0]; if (!location) return null; return { address: location.address, city: location.city, postalCode: location.postalCode, latitude: location.latitude, longitude: location.longitude }; };
 const formatSchedules = (b: Business) => b.businessSchedules?.map((schedule) => ({ id: schedule.scheduleId, day: schedule.day, isClosed: Boolean(schedule.isClosed), opened: schedule.opened, closed: schedule.closed, isHoliday: Boolean(schedule.isHoliday) })) || [];
 const formatDeliverySettings = (b: Business) => { const settings = b.businessDeliverySettings?.[0]; if (!settings) return null; return { deliveryRadiusKm: Number(settings.deliveryRadiusKm || 0), deliveryFee: Number(settings.deliveryFee || 0), minOrderAmount: Number(settings.minOrderAmount || 0), estimatedTimeMin: Number(settings.estimatedTimeMin || 0), useOwnDelivery: Boolean(settings.useOwnDelivery) }; };
-const formatPaymentMethods = (b: Business) => b.businessPaymentMethods?.map((method) => ({ method: method.method, active: Boolean(method.isActive), config: method.configJson })) || [];
+const parsePaymentConfig = (value: string | null) => {
+  if (!value) return {};
+  try { return JSON.parse(value) as Record<string, unknown>; }
+  catch { return {}; }
+};
+const formatPaymentMethods = (b: Business) => b.businessPaymentMethods?.map((method) => {
+  const config = parsePaymentConfig(method.configJson);
+  const transferReady = method.method !== "transfer" || isUsableTransferConfig(normalizeTransferBankConfig(config));
+  return { method: method.method, active: Boolean(method.isActive) && transferReady, config };
+}) || [];
 const formatSocial = (b: Business) => ({
   facebook: b.facebookUrl || "",
   instagram: b.instagramUrl || "",

@@ -5,10 +5,14 @@ import fs from 'fs';
 
 const projectRoot = path.resolve(__dirname, '..', '..');
 const uploadsPath = path.join(projectRoot, 'uploads');
+export const privateEvidenceUploadsPath = path.join(projectRoot, 'private_uploads', 'transfer-evidence');
 
 // Crear directorio si no existe
 if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, { recursive: true });
+}
+if (!fs.existsSync(privateEvidenceUploadsPath)) {
+  fs.mkdirSync(privateEvidenceUploadsPath, { recursive: true });
 }
 
 // Tipos de archivo permitidos
@@ -44,6 +48,14 @@ const storage = multer.diskStorage({
   }
 });
 
+const evidenceStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, privateEvidenceUploadsPath),
+  filename: (_req, file, cb) => {
+    const ext = ALLOWED_TYPES[file.mimetype as keyof typeof ALLOWED_TYPES];
+    cb(null, `${Date.now()}-${crypto.randomBytes(24).toString('hex')}${ext}`);
+  },
+});
+
 // Configuración de multer
 export const uploadSecure = multer({
   storage,
@@ -52,6 +64,15 @@ export const uploadSecure = multer({
     fileSize: MAX_FILE_SIZE,
     files: 1
   }
+});
+
+export const uploadEvidenceSecure = multer({
+  storage: evidenceStorage,
+  fileFilter: (_req, file, cb) => {
+    if (["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) cb(null, true);
+    else cb(new Error("El comprobante debe ser una imagen JPG, PNG o WebP"));
+  },
+  limits: { fileSize: MAX_FILE_SIZE, files: 1 },
 });
 
 // Middleware para manejar errores de multer

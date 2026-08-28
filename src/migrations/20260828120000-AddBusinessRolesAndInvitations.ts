@@ -36,7 +36,7 @@ export class AddBusinessRolesAndInvitations20260828120000 implements MigrationIn
         UNIQUE INDEX idx_business_invitation_token (token_hash),
         INDEX idx_business_invitation_business (business_id),
         INDEX idx_business_invitation_email (invited_email),
-        CONSTRAINT fk_business_invitation_business FOREIGN KEY (business_id) REFERENCES businesses (business_id) ON DELETE CASCADE,
+        CONSTRAINT fk_business_invitation_business FOREIGN KEY (business_id) REFERENCES business (business_id) ON DELETE CASCADE,
         CONSTRAINT fk_business_invitation_inviter FOREIGN KEY (invited_by) REFERENCES users (user_id) ON DELETE RESTRICT,
         CONSTRAINT fk_business_invitation_acceptor FOREIGN KEY (accepted_by) REFERENCES users (user_id) ON DELETE SET NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci

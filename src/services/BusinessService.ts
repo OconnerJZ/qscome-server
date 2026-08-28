@@ -13,6 +13,7 @@ import { UserRoles } from "../entities/UserRoles";
 import { HttpError } from "../utils/httpError";
 import { formatBusinessCard, formatOwnerBusinessCard, formatBusinessDetail, formatMenuItem } from "../serializers/business.serializer";
 import { normalizeBusinessRole, permissionsForRole } from "../security/businessAccess";
+import { assertUsableTransferConfig, normalizeTransferBankConfig } from "../security/transferPayment";
 
 interface ScheduleInput { day: string; isClosed?: boolean | null; opened?: string | null; closed?: string | null; isHoliday?: boolean | null; }
 export interface CreateBusinessInput { id: number; business_name?: string; phone?: string; logo_url?: string; locale?: Record<string, unknown>; schedule?: ScheduleInput[]; has_delivery?: boolean; food_type?: number[]; }
@@ -118,7 +119,22 @@ export class BusinessService {
     return this.getById(businessId);
   }
   async updateDeliverySettings(businessId: number, body: any) { let row = await this.bDeliveryRepo.findOne({ where: { businessId } }); if (!row) row = this.bDeliveryRepo.create({ businessId }); const map: Record<string, string> = { delivery_radius_km: "deliveryRadiusKm", delivery_fee: "deliveryFee", min_order_amount: "minOrderAmount", estimated_time_min: "estimatedTimeMin", use_own_delivery: "useOwnDelivery" }; Object.entries(map).forEach(([from, to]) => { if (body[from] !== undefined) (row as any)[to] = body[from]; }); await this.bDeliveryRepo.save(row); return this.getById(businessId); }
-  async updatePaymentMethods(businessId: number, methods: any[] = []) { await this.bPaymentRepo.delete({ businessId }); if (methods.length) await this.bPaymentRepo.save(methods.map((m) => this.bPaymentRepo.create({ businessId, method: typeof m === "string" ? m : m.method, isActive: typeof m === "string" ? true : m.isActive !== false }))); return this.getById(businessId); }
+  async updatePaymentMethods(businessId: number, methods: any[] = []) {
+    const normalized = methods.map((raw) => {
+      const method = (typeof raw === "string" ? raw : raw?.method) as PaymentType;
+      if (!PAYMENT_METHODS.includes(method)) throw new HttpError(400, "Método de pago inválido");
+      const isActive = typeof raw === "string" ? true : (raw?.is_active ?? raw?.isActive) !== false;
+      const config = method === "transfer" ? normalizeTransferBankConfig(raw?.config) : null;
+      if (config && isActive) assertUsableTransferConfig(config);
+      return { businessId, method, isActive, configJson: config ? JSON.stringify(config) : null };
+    });
+    await AppDataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(BusinessPaymentMethods);
+      await repo.delete({ businessId });
+      if (normalized.length) await repo.save(normalized.map((method) => repo.create(method)));
+    });
+    return this.getById(businessId);
+  }
   async updateFoodTypes(businessId: number, ids: number[] = []) { await this.bFoodTypesRepo.delete({ businessId }); if (ids.length) await this.bFoodTypesRepo.save(ids.map((foodTypeId) => this.bFoodTypesRepo.create({ businessId, foodTypeId }))); return this.getById(businessId); }
   async addPhoto(businessId: number, photoUrl: string) { if (!photoUrl) throw new HttpError(400, "photo_url requerido"); const photo = await this.bPhotosRepo.save(this.bPhotosRepo.create({ businessId, photoUrl })); return { id: photo.photoId, photoUrl: photo.photoUrl }; }
   async deletePhoto(businessId: number, photoId: number) { const photo = await this.bPhotosRepo.findOne({ where: { photoId, businessId } }); if (!photo) throw new HttpError(404, "Foto no encontrada"); await this.bPhotosRepo.remove(photo); }
