@@ -1,12 +1,15 @@
 import { Request, Response, NextFunction } from "express";
-import { AuthTokenPayload, verifyAuthToken } from "../utils/authToken";
+import { AuthTokenPayload } from "../utils/authToken";
+import { AuthIdentityService } from "../services/AuthIdentityService";
+
+const identityService = new AuthIdentityService();
 
 export interface AuthRequest extends Request {
     user?: AuthTokenPayload;
     businessAccess?: { businessId: number; role: string; permissions: readonly string[] };
 }
 
-export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const token = req.headers.authorization?.split(" ")[1];
 
@@ -14,9 +17,13 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
             return res.status(401).json({ message: "Token no proporcionado" });
         }
 
-        req.user = verifyAuthToken(token);
+        const identity = await identityService.resolve(token);
+        if (!identity) {
+            return res.status(401).json({ message: "La cuenta ya no está disponible" });
+        }
+        req.user = identity;
         next();
-    } catch(error) {
-        return res.status(401).json({ message: "Token inválido o expirado " + error });
+    } catch {
+        return res.status(401).json({ message: "Token inválido o expirado" });
     }
 };

@@ -3,7 +3,7 @@ import { BusinessOwners } from "../entities/BusinessOwners";
 import { BusinessInvitations, BusinessInvitationType } from "../entities/BusinessInvitations";
 import { Business } from "../entities/Business";
 import { Users } from "../entities/Users";
-import { BUSINESS_ROLES, BusinessRole, normalizeBusinessRole } from "../security/businessRoles";
+import { BUSINESS_ROLES, BusinessRole, normalizeBusinessRole, permissionsForRole } from "../security/businessRoles";
 import {
   createInvitationExpiry, createInvitationSecrets, hashInvitationCode,
   hashInvitationToken, normalizeInvitationEmail, serializeInvitation,
@@ -11,6 +11,7 @@ import {
 import { HttpError } from "../utils/httpError";
 import { BusinessAccessAuditService } from "./BusinessAccessAuditService";
 import { MEMBER_ROLES } from "./BusinessMembershipService";
+import { emitBusinessAccessChanged } from "../utils/socket";
 
 interface CreateInvitationInput {
   email: string;
@@ -146,6 +147,19 @@ export class BusinessInvitationService {
       return manager.getRepository(BusinessInvitations).save(locked);
     });
     await this.audit.record(userId, accepted.invitationType === "ownership_transfer" ? "OWNERSHIP_TRANSFER_ACCEPTED" : "BUSINESS_INVITATION_ACCEPTED", accepted.businessId, serializeInvitation(accepted));
+    await emitBusinessAccessChanged(userId, accepted.businessId, {
+      role: accepted.roleInBusiness,
+      permissions: permissionsForRole(accepted.roleInBusiness),
+    });
+    if (accepted.invitationType === "ownership_transfer") {
+      await emitBusinessAccessChanged(
+        accepted.invitedBy,
+        accepted.businessId,
+        accepted.retainPreviousAsCoOwner
+          ? { role: "co_owner", permissions: permissionsForRole("co_owner") }
+          : null,
+      );
+    }
     return { ...serializeInvitation(accepted), accepted: true };
   }
 
@@ -158,4 +172,3 @@ export class BusinessInvitationService {
     await this.audit.record(actorUserId, "BUSINESS_INVITATION_CANCELLED", businessId, serializeInvitation(invitation));
   }
 }
-

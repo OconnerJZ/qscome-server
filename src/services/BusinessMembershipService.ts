@@ -3,6 +3,7 @@ import { BusinessOwners } from "../entities/BusinessOwners";
 import { BusinessRole, normalizeBusinessRole, permissionsForRole } from "../security/businessRoles";
 import { HttpError } from "../utils/httpError";
 import { BusinessAccessAuditService } from "./BusinessAccessAuditService";
+import { emitBusinessAccessChanged } from "../utils/socket";
 
 export const MEMBER_ROLES: BusinessRole[] = ["co_owner", "manager", "kitchen", "cashier"];
 
@@ -39,7 +40,9 @@ export class BusinessMembershipService {
     membership.roleInBusiness = role;
     await this.repository.save(membership);
     await this.audit.record(actorUserId, "BUSINESS_MEMBER_ROLE_CHANGED", businessId, { userId: targetUserId, previousRole, role });
-    return { userId: targetUserId, role, permissions: permissionsForRole(role) };
+    const permissions = permissionsForRole(role);
+    await emitBusinessAccessChanged(targetUserId, businessId, { role, permissions });
+    return { userId: targetUserId, role, permissions };
   }
 
   async remove(businessId: number, targetUserId: number, actorUserId: number) {
@@ -49,6 +52,6 @@ export class BusinessMembershipService {
     if (role === "primary_owner") throw new HttpError(409, "No puedes eliminar al propietario principal");
     await this.repository.remove(membership);
     await this.audit.record(actorUserId, "BUSINESS_MEMBER_REMOVED", businessId, { userId: targetUserId, role });
+    await emitBusinessAccessChanged(targetUserId, businessId, null);
   }
 }
-
