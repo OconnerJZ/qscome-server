@@ -19,6 +19,7 @@ import catalogRoutes from "./src/routes/catalogRoutes";
 import statsRoutes from "./src/routes/statsRoutes";
 import { initializeSocket } from "./src/utils/socket";
 import { corsOrigin } from "./src/utils/cors";
+import sharedOrderRoutes from "./src/routes/sharedOrderRoutes";
 
 dotenv.config({ debug: false });
 
@@ -80,6 +81,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/business", businessRoutes);
 app.use("/api/menus", menuRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/shared-orders", sharedOrderRoutes);
 app.use("/api/payments", paymentRoutes); // RUTA CORREGIDA
 app.use("/api/upload", uploadRoutes);
 app.use("/api/catalogs", catalogRoutes);

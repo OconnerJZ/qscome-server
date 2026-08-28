@@ -41,6 +41,7 @@ export class Orders {
   @Column("enum", { name: "order_type", nullable: false, enum: ["pickup", "delivery", "on_route", "delivered"], default: () => "'pickup'" }) orderType!: "pickup" | "delivery";
   @Column("enum", { name: "payment_method", nullable: false, enum: ["cash", "card", "wallet", "transfer"], default: () => "'cash'" }) paymentMethod!: "cash" | "card" | "wallet" | "transfer";
   @Column("longtext", { name: "transfer_bank_snapshot_json", nullable: true }) transferBankSnapshotJson!: string | null;
+  @Column("char", { name: "shared_session_id", nullable: true, length: 36 }) sharedSessionId!: string | null;
   @Column("varchar", { name: "customer_name", nullable: true, length: 255 }) customerName!: string | null;
   @Column("varchar", { name: "customer_phone", nullable: true, length: 30 }) customerPhone!: string | null;
   @Column("text", { name: "delivery_address", nullable: true }) deliveryAddress!: string | null;

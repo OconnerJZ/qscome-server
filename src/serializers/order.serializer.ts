@@ -48,6 +48,7 @@ export const formatOrder = (order: Orders) => ({
       subtotal,
       note: d.notes,
       kitchenStatus: d.kitchenStatus || "pending",
+      participantLabel: d.sharedParticipantLabel || null,
       modifiers: (d.orderDetailOptions || []).map((modifier) => ({
         choiceId: modifier.choiceId,
         group: modifier.groupTitle,

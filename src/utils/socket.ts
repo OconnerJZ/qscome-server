@@ -4,6 +4,7 @@ import { Server as HTTPServer } from 'node:http';
 import { corsOrigin } from './cors';
 import { getBusinessMembership } from '../security/businessAccess';
 import { AuthIdentityService } from '../services/AuthIdentityService';
+import { getActiveSharedOrderParticipant } from '../security/sharedOrderAccess';
 
 let io: Server;
 const identityService = new AuthIdentityService();
@@ -66,6 +67,30 @@ export const initializeSocket = (httpServer: HTTPServer) => {
       acknowledge?.({ success: true, businessId });
     });
 
+    socket.on('join:shared-order', async (rawSessionId: string, acknowledge?: (result: any) => void) => {
+      try {
+        const sessionId = String(rawSessionId || '').trim();
+        if (!/^[0-9a-f-]{36}$/i.test(sessionId)) {
+          return acknowledge?.({ success: false, error: 'SHARED_ORDER_ID_INVALID' });
+        }
+        const participant = await getActiveSharedOrderParticipant(sessionId, authenticatedUser.userId);
+        if (!participant) return acknowledge?.({ success: false, error: 'SHARED_ORDER_ACCESS_DENIED' });
+        await socket.join(`shared-order:${sessionId}`);
+        acknowledge?.({ success: true, sessionId });
+      } catch {
+        acknowledge?.({ success: false, error: 'SHARED_ORDER_JOIN_FAILED' });
+      }
+    });
+
+    socket.on('leave:shared-order', async (rawSessionId: string, acknowledge?: (result: any) => void) => {
+      const sessionId = String(rawSessionId || '').trim();
+      if (!/^[0-9a-f-]{36}$/i.test(sessionId)) {
+        return acknowledge?.({ success: false, error: 'SHARED_ORDER_ID_INVALID' });
+      }
+      await socket.leave(`shared-order:${sessionId}`);
+      acknowledge?.({ success: true, sessionId });
+    });
+
     socket.on('disconnect', () => {
       console.log(`❌ Cliente desconectado: ${socket.id}`);
     });
@@ -104,6 +129,11 @@ export const emitKitchenItemUpdate = (businessId: number, userId: number | null 
 export const emitTransferPaymentUpdated = (businessId: number, userId: number, payload: any) => {
   io.to(`business:${businessId}`).emit("order:transfer_payment_updated", payload);
   io.to(`user:${userId}`).emit("order:transfer_payment_updated", payload);
+};
+
+export const emitSharedOrderUpdated = (sessionId: string, payload: any) => {
+  if (!io) return;
+  io.to(`shared-order:${sessionId}`).emit('shared-order:updated', payload);
 };
 
 export const emitBusinessAccessChanged = async (

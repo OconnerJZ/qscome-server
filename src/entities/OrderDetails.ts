@@ -72,6 +72,9 @@ export class OrderDetails {
   @Column("text", { name: "notes", nullable: true })
   notes!: string | null;
 
+  @Column("varchar", { name: "shared_participant_label", nullable: true, length: 40 })
+  sharedParticipantLabel!: string | null;
+
   @ManyToOne(() => Orders, (orders) => orders.orderDetails, {
     onDelete: "RESTRICT",
     onUpdate: "RESTRICT",
