@@ -15,6 +15,7 @@ export type KitchenItemStatus = "pending" | "preparing" | "ready";
 
 @Index("order_id", ["orderId"], {})
 @Index("menu_id", ["menuId"], {})
+@Index("idx_order_details_product_period", ["menuId", "createdAt"], {})
 @Entity("order_details", { schema: "qscome" })
 export class OrderDetails {
   @PrimaryGeneratedColumn({ type: "int", name: "order_detail_id" })

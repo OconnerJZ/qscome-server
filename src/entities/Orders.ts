@@ -25,6 +25,8 @@ import { OrderTransferPayment } from "./OrderTransferPayment";
 @Index("fk_orders_delivery_address", ["deliveryAddressId"], {})
 @Index("idx_orders_business", ["businessId"], {})
 @Index("idx_orders_user", ["userId"], {})
+@Index("idx_orders_analytics", ["businessId", "createdAt", "status"], {})
+@Index("idx_orders_customer_analytics", ["businessId", "userId", "status", "createdAt"], {})
 @Entity("orders", { schema: "qscome" })
 export class Orders {
   @PrimaryGeneratedColumn({ type: "int", name: "order_id" }) orderId!: number;

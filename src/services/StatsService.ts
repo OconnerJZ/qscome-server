@@ -1,171 +1,67 @@
-// src/services/StatsService.ts
-// Métricas de negocio alineadas al contrato que consume OwnerReports.
-
 import { AppDataSource } from "../utils/db";
 import { Orders } from "../entities/Orders";
-import { Between } from "typeorm";
 import { getStatusLabel } from "../serializers/order.serializer";
+import { HttpError } from "../utils/httpError";
+import { StatsQueryService } from "./stats/StatsQueryService";
+import { createStatsPeriod, percentage, percentageChange } from "./stats/statsPeriod";
 
-const STATUS_ORDER = [
-  "pending",
-  "accepted",
-  "preparing",
-  "ready",
-  "in_delivery",
-  "completed",
-  "cancelled",
-];
-
-const startOfDay = (date: Date) => {
-  const value = new Date(date);
-  value.setHours(0, 0, 0, 0);
-  return value;
-};
-
-const endOfDay = (date: Date) => {
-  const value = new Date(date);
-  value.setHours(23, 59, 59, 999);
-  return value;
-};
-
-const percentageChange = (current: number, previous: number) => {
-  if (previous === 0) return current > 0 ? 100 : 0;
-  return Number((((current - previous) / previous) * 100).toFixed(1));
-};
+const number = (value: unknown) => Number(value || 0);
+const money = (value: unknown) => Number(number(value).toFixed(2));
 
 export class StatsService {
-  private readonly orderRepo = AppDataSource.getRepository(Orders);
+  private readonly queries = new StatsQueryService();
 
-  async getBusinessStats(businessId: number, period = 7) {
-    const safePeriod = Math.min(Math.max(Number(period) || 7, 1), 365);
-    const now = new Date();
-    const currentStart = startOfDay(new Date(now));
-    currentStart.setDate(currentStart.getDate() - (safePeriod - 1));
-    const currentEnd = endOfDay(now);
-
-    const previousEnd = new Date(currentStart.getTime() - 1);
-    const previousStart = startOfDay(new Date(previousEnd));
-    previousStart.setDate(previousStart.getDate() - (safePeriod - 1));
-
-    const [currentOrders, previousOrders, pendingOrders] = await Promise.all([
-      this.orderRepo.find({
-        where: { businessId, createdAt: Between(currentStart, currentEnd) },
-      }),
-      this.orderRepo.find({
-        where: { businessId, createdAt: Between(previousStart, previousEnd) },
-      }),
-      this.orderRepo.count({ where: { businessId, status: "pending" } }),
+  async getBusinessStats(businessId: number, requestedPeriod = 7) {
+    if (!Number.isInteger(businessId) || businessId < 1) throw new HttpError(400, "Negocio inválido");
+    const period = createStatsPeriod(requestedPeriod);
+    const currentWindow = { start: period.currentStart, end: period.currentEnd };
+    const previousWindow = { start: period.previousStart, end: period.previousEnd };
+    const [current, previous, returningCustomers, trendRows, products, slowMovers, categories, paymentMix, orderTypeMix, peakHours, statusRows, operational, pendingOrders] = await Promise.all([
+      this.queries.summary(businessId, currentWindow), this.queries.summary(businessId, previousWindow),
+      this.queries.returningCustomers(businessId, currentWindow), this.queries.salesTrend(businessId, currentWindow),
+      this.queries.productPerformance(businessId, currentWindow), this.queries.slowMovers(businessId, currentWindow),
+      this.queries.categoryPerformance(businessId, currentWindow), this.queries.paymentMix(businessId, currentWindow),
+      this.queries.orderTypeMix(businessId, currentWindow), this.queries.peakHours(businessId, currentWindow),
+      this.queries.statusDistribution(businessId, currentWindow), this.queries.operationalTimes(businessId, currentWindow),
+      AppDataSource.getRepository(Orders).count({ where: { businessId, status: "pending" } }),
     ]);
-
-    const completedOrders = currentOrders.filter((order) => order.status === "completed");
-    const totalRevenue = completedOrders.reduce(
-      (sum, order) => sum + Number.parseFloat(order.total || "0"),
-      0,
-    );
-
-    const totalOrders = currentOrders.length;
-    const averageOrder =
-      completedOrders.length > 0 ? totalRevenue / completedOrders.length : 0;
-
-    const [salesByDay, topProducts, ordersByStatus] = await Promise.all([
-      this.getSalesByDay(businessId, safePeriod, currentEnd),
-      this.getTopProducts(businessId, currentStart, currentEnd),
-      this.getOrdersByStatus(currentOrders),
-    ]);
-
+    const totalOrders = number(current.total_orders), completedOrders = number(current.completed_orders), cancelledOrders = number(current.cancelled_orders);
+    const previousTotal = number(previous.total_orders), totalRevenue = money(current.revenue), previousRevenue = money(previous.revenue);
+    const averageTicket = money(current.average_ticket), previousAverageTicket = money(previous.average_ticket);
+    const itemsSold = number(current.items_sold), previousItemsSold = number(previous.items_sold);
+    const uniqueCustomers = number(current.unique_customers);
     return {
       summary: {
-        totalOrders,
-        totalRevenue: Number(totalRevenue.toFixed(2)),
-        averageOrder: Number(averageOrder.toFixed(2)),
-        pendingOrders,
-        ordersGrowth: percentageChange(totalOrders, previousOrders.length),
+        totalRevenue, revenueGrowth: percentageChange(totalRevenue, previousRevenue),
+        totalOrders, ordersGrowth: percentageChange(totalOrders, previousTotal), completedOrders,
+        averageTicket, averageTicketGrowth: percentageChange(averageTicket, previousAverageTicket),
+        itemsSold, itemsGrowth: percentageChange(itemsSold, previousItemsSold), pendingOrders,
+        cancellationRate: percentage(cancelledOrders, totalOrders), previousCancellationRate: percentage(number(previous.cancelled_orders), previousTotal),
+        completionRate: percentage(completedOrders, totalOrders), potentialCancelledRevenue: money(current.cancelled_value),
+        uniqueCustomers, customerGrowth: percentageChange(uniqueCustomers, number(previous.unique_customers)),
+        repeatCustomerRate: percentage(returningCustomers, uniqueCustomers), returningCustomers,
       },
-      salesByDay,
-      topProducts,
-      ordersByStatus,
-      period: {
-        days: safePeriod,
-        startDate: currentStart.toISOString(),
-        endDate: currentEnd.toISOString(),
-      },
+      salesByDay: this.fillDailyTrend(period.currentStart, period.days, trendRows),
+      productPerformance: products.map((row: any) => ({ id: row.id, name: row.name, category: row.category, image: row.image, quantity: number(row.quantity), orderCount: number(row.order_count), revenue: money(row.revenue), revenueShare: percentage(number(row.revenue), totalRevenue), averageUnitPrice: money(row.average_unit_price) })),
+      slowMovers: slowMovers.map((row: any) => ({ id: row.id, name: row.name, category: row.category, image: row.image, quantity: number(row.quantity), revenue: money(row.revenue) })),
+      categoryPerformance: categories.map((row: any) => ({ category: row.category, quantity: number(row.quantity), orderCount: number(row.order_count), revenue: money(row.revenue), revenueShare: percentage(number(row.revenue), totalRevenue) })),
+      paymentMix: paymentMix.map((row: any) => ({ method: row.method, orders: number(row.orders), revenue: money(row.revenue), share: percentage(number(row.revenue), totalRevenue) })),
+      orderTypeMix: orderTypeMix.map((row: any) => ({ type: row.type, orders: number(row.orders), revenue: money(row.revenue), share: percentage(number(row.orders), completedOrders) })),
+      peakHours: peakHours.map((row: any) => ({ hour: number(row.hour), label: `${String(number(row.hour)).padStart(2, "0")}:00`, orders: number(row.orders), revenue: money(row.revenue) })),
+      ordersByStatus: statusRows.map((row: any) => ({ status: row.status, name: getStatusLabel(row.status), value: number(row.value), share: percentage(number(row.value), totalOrders) })),
+      operations: { averageAcceptanceMinutes: number(operational.acceptance_minutes), averageFulfillmentMinutes: number(operational.fulfillment_minutes) },
+      period: { days: period.days, startDate: period.currentStart.toISOString(), endDate: period.currentEnd.toISOString(), comparisonStartDate: period.previousStart.toISOString(), comparisonEndDate: period.previousEnd.toISOString() },
+      accountingNote: "Los importes representan ventas brutas de órdenes completadas; no son utilidad y no descuentan costos, comisiones ni impuestos.",
     };
   }
 
-  private async getSalesByDay(businessId: number, days: number, currentEnd: Date) {
-    const result: Array<{ date: string; revenue: number; orders: number }> = [];
-
-    for (let i = days - 1; i >= 0; i--) {
-      const date = startOfDay(new Date(currentEnd));
-      date.setDate(date.getDate() - i);
-      const nextDay = endOfDay(date);
-
-      const orders = await this.orderRepo.find({
-        where: {
-          businessId,
-          status: "completed",
-          createdAt: Between(date, nextDay),
-        },
-      });
-
-      const revenue = orders.reduce(
-        (sum, order) => sum + Number.parseFloat(order.total || "0"),
-        0,
-      );
-
-      result.push({
-        date: date.toLocaleDateString("es-MX", {
-          day: "2-digit",
-          month: "short",
-        }),
-        revenue: Number(revenue.toFixed(2)),
-        orders: orders.length,
-      });
-    }
-
-    return result;
-  }
-
-  private async getTopProducts(
-    businessId: number,
-    startDate: Date,
-    endDate: Date,
-  ) {
-    const query = `
-      SELECT
-        od.menu_id AS id,
-        COALESCE(MAX(od.item_name), MAX(m.item_name), 'Producto') AS name,
-        MAX(m.category) AS category,
-        MAX(m.image_url) AS image,
-        SUM(od.quantity) AS quantity,
-        SUM(od.subtotal) AS revenue
-      FROM order_details od
-      INNER JOIN orders o ON od.order_id = o.order_id
-      LEFT JOIN menus m ON od.menu_id = m.menu_id
-      WHERE o.business_id = ?
-        AND o.status = 'completed'
-        AND o.created_at BETWEEN ? AND ?
-      GROUP BY od.menu_id
-      ORDER BY quantity DESC, revenue DESC
-      LIMIT 8
-    `;
-
-    const rows = await AppDataSource.query(query, [businessId, startDate, endDate]);
-
-    return rows.map((product: any) => ({
-      id: product.id,
-      name: product.name,
-      category: product.category,
-      image: product.image,
-      quantity: Number.parseInt(product.quantity || "0", 10),
-      revenue: Number.parseFloat(product.revenue || "0"),
-    }));
-  }
-
-  private async getOrdersByStatus(orders: Orders[]) {
-    return STATUS_ORDER.map((status) => ({
-      name: getStatusLabel(status),
-      value: orders.filter((order) => order.status === status).length,
-    })).filter((item) => item.value > 0);
+  private fillDailyTrend(start: Date, days: number, rows: any[]) {
+    const byDate = new Map(rows.map((row) => [String(row.date), row]));
+    return Array.from({ length: days }, (_, index) => {
+      const date = new Date(start); date.setDate(date.getDate() + index);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      const row: any = byDate.get(key);
+      return { date: key, label: date.toLocaleDateString("es-MX", { day: "2-digit", month: "short" }), revenue: money(row?.revenue), orders: number(row?.orders), averageTicket: money(row?.average_ticket) };
+    });
   }
 }
