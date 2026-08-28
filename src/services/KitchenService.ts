@@ -53,6 +53,15 @@ export class KitchenService {
         order.status = "preparing";
         await orderRepo.save(order);
         await historyRepo.save(historyRepo.create({ orderId: order.orderId, status: "preparing", not: "Preparación iniciada", changedBy: actor.userId }));
+        await this.auditService.record({
+          orderId,
+          businessId: order.businessId,
+          actorUserId: actor.userId,
+          actorRole: actor.role,
+          action: "ORDER_STATUS_CHANGED",
+          orderVersion: order.version,
+          metadata: { from: "accepted", to: "preparing", trigger: "KITCHEN_ITEM_STATUS_CHANGED", detailId },
+        }, manager);
         orderStatusChanged = true;
       }
       if (current !== status) {
