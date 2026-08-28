@@ -13,11 +13,25 @@ import { UserRoles } from "../entities/UserRoles";
 import { HttpError } from "../utils/httpError";
 import { formatBusinessCard, formatOwnerBusinessCard, formatBusinessDetail, formatMenuItem } from "../serializers/business.serializer";
 
-export interface CreateBusinessInput { id: number; business_name?: string; phone?: string; logo_url?: string; locale?: Record<string, unknown>; schedule?: Array<Record<string, unknown>>; has_delivery?: boolean; food_type?: number[]; }
-interface ScheduleInput { day?: string; isClosed?: boolean | null; opened?: string | null; closed?: string | null; isHoliday?: boolean | null; }
+interface ScheduleInput { day: string; isClosed?: boolean | null; opened?: string | null; closed?: string | null; isHoliday?: boolean | null; }
+export interface CreateBusinessInput { id: number; business_name?: string; phone?: string; logo_url?: string; locale?: Record<string, unknown>; schedule?: ScheduleInput[]; has_delivery?: boolean; food_type?: number[]; }
 const PAYMENT_METHODS = ["cash", "card", "wallet", "transfer"] as const;
 type PaymentType = (typeof PAYMENT_METHODS)[number];
 const PROFILE_RELATIONS = ["locations", "businessFoodTypes", "businessFoodTypes.foodType", "businessSchedules", "businessDeliverySettings", "businessPaymentMethods", "businessPhotos"];
+
+const normalizeSchedule = (schedule: ScheduleInput, businessId: number) => {
+  const day = schedule.day?.trim();
+  if (!day) throw new HttpError(400, "Todos los horarios deben indicar un día");
+
+  return {
+    businessId,
+    day,
+    isClosed: Boolean(schedule.isClosed),
+    opened: schedule.opened || null,
+    closed: schedule.closed || null,
+    isHoliday: Boolean(schedule.isHoliday),
+  };
+};
 
 export class BusinessService {
   private readonly businessRepo = AppDataSource.getRepository(Business);
@@ -68,7 +82,7 @@ export class BusinessService {
       const business = businessRepo.create({ businessName: business_name, phone, logoUrl: logo_url, isOpen: true, hasDelivery: has_delivery }); await businessRepo.save(business);
       if (locale) await locationRepo.save(locationRepo.create({ businessId: business.businessId, ...locale }));
       if (schedule?.length) {
-        const scheduleRows = schedule.map((raw) => { const s = raw as ScheduleInput; return scheduleRepo.create({ businessId: business.businessId, day: s.day || null, isClosed: Boolean(s.isClosed), opened: s.opened || null, closed: s.closed || null, isHoliday: Boolean(s.isHoliday) }); });
+        const scheduleRows = schedule.map((entry) => scheduleRepo.create(normalizeSchedule(entry, business.businessId)));
         await scheduleRepo.save(scheduleRows);
       }
       if (food_type?.length) await bFoodTypesRepo.save(food_type.map((foodTypeId) => bFoodTypesRepo.create({ businessId: business.businessId, foodTypeId })));
@@ -83,7 +97,19 @@ export class BusinessService {
   }
 
   async updateLocation(businessId: number, body: any) { let row = await this.locationRepo.findOne({ where: { businessId } }); if (!row) row = this.locationRepo.create({ businessId }); Object.assign(row, body); await this.locationRepo.save(row); return this.getById(businessId); }
-  async updateSchedules(businessId: number, schedules: ScheduleInput[] = []) { await this.scheduleRepo.delete({ businessId }); if (schedules.length) { const rows = schedules.map((s) => this.scheduleRepo.create({ businessId, day: s.day || null, isClosed: Boolean(s.isClosed), opened: s.opened || null, closed: s.closed || null, isHoliday: Boolean(s.isHoliday) })); await this.scheduleRepo.save(rows); } return this.getById(businessId); }
+  async updateSchedules(businessId: number, schedules: ScheduleInput[] = []) {
+    const normalizedSchedules = schedules.map((schedule) => normalizeSchedule(schedule, businessId));
+
+    await AppDataSource.transaction(async (manager) => {
+      const scheduleRepo = manager.getRepository(BusinessSchedule);
+      await scheduleRepo.delete({ businessId });
+      if (normalizedSchedules.length) {
+        await scheduleRepo.save(normalizedSchedules.map((schedule) => scheduleRepo.create(schedule)));
+      }
+    });
+
+    return this.getById(businessId);
+  }
   async updateDeliverySettings(businessId: number, body: any) { let row = await this.bDeliveryRepo.findOne({ where: { businessId } }); if (!row) row = this.bDeliveryRepo.create({ businessId }); const map: Record<string, string> = { delivery_radius_km: "deliveryRadiusKm", delivery_fee: "deliveryFee", min_order_amount: "minOrderAmount", estimated_time_min: "estimatedTimeMin", use_own_delivery: "useOwnDelivery" }; Object.entries(map).forEach(([from, to]) => { if (body[from] !== undefined) (row as any)[to] = body[from]; }); await this.bDeliveryRepo.save(row); return this.getById(businessId); }
   async updatePaymentMethods(businessId: number, methods: any[] = []) { await this.bPaymentRepo.delete({ businessId }); if (methods.length) await this.bPaymentRepo.save(methods.map((m) => this.bPaymentRepo.create({ businessId, method: typeof m === "string" ? m : m.method, isActive: typeof m === "string" ? true : m.isActive !== false }))); return this.getById(businessId); }
   async updateFoodTypes(businessId: number, ids: number[] = []) { await this.bFoodTypesRepo.delete({ businessId }); if (ids.length) await this.bFoodTypesRepo.save(ids.map((foodTypeId) => this.bFoodTypesRepo.create({ businessId, foodTypeId }))); return this.getById(businessId); }
