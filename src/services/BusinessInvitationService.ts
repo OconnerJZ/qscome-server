@@ -1,4 +1,5 @@
 import { AppDataSource } from "../utils/db";
+import { MoreThan } from "typeorm";
 import { BusinessOwners } from "../entities/BusinessOwners";
 import { BusinessInvitations, BusinessInvitationType } from "../entities/BusinessInvitations";
 import { Business } from "../entities/Business";
@@ -12,6 +13,7 @@ import { HttpError } from "../utils/httpError";
 import { BusinessAccessAuditService } from "./BusinessAccessAuditService";
 import { MEMBER_ROLES } from "./BusinessMembershipService";
 import { emitBusinessAccessChanged } from "../utils/socket";
+import { BusinessPlanService } from "./BusinessPlanService";
 
 interface CreateInvitationInput {
   email: string;
@@ -24,6 +26,7 @@ export class BusinessInvitationService {
   private readonly invitations = AppDataSource.getRepository(BusinessInvitations);
   private readonly memberships = AppDataSource.getRepository(BusinessOwners);
   private readonly audit = new BusinessAccessAuditService();
+  private readonly plans = new BusinessPlanService();
 
   async listPending(businessId: number) {
     const rows = await this.invitations.find({ where: { businessId, status: "pending" }, order: { createdAt: "DESC" } });
@@ -58,6 +61,14 @@ export class BusinessInvitationService {
     if (!/^\S+@\S+\.\S+$/.test(email)) throw new HttpError(400, "Email de invitación inválido");
     if (!BUSINESS_ROLES.includes(input.role)) throw new HttpError(400, "Rol de negocio inválido");
     if (input.type === "membership" && !MEMBER_ROLES.includes(input.role)) throw new HttpError(400, "No puedes invitar otro propietario principal");
+
+    if (input.type === "membership") {
+      const [members, pending] = await Promise.all([
+        this.memberships.count({ where: { businessId } }),
+        this.invitations.count({ where: { businessId, status: "pending", expiresAt: MoreThan(new Date()) } }),
+      ]);
+      await this.plans.assertWithinLimit(businessId, "teamMembers", members + pending);
+    }
 
     const [business, existingUser] = await Promise.all([
       AppDataSource.getRepository(Business).findOne({ where: { businessId } }),

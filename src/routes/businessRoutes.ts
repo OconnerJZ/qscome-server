@@ -7,18 +7,25 @@ import { CreateBusinessDto } from "../dtos/business.dto";
 import { BusinessTeamController } from "../controllers/BusinessTeamController";
 import { AcceptBusinessInvitationCodeDto, InviteBusinessMemberDto, TransferBusinessOwnershipDto, UpdateBusinessMemberRoleDto } from "../dtos/businessTeam.dto";
 import { createRateLimiter } from "../middlewares/rateLimit";
+import { BusinessPlanController } from "../controllers/BusinessPlanController";
+import { AssignBusinessPlanDto } from "../dtos/businessPlan.dto";
+import { authorize } from "../middlewares/roleMiddleware";
 
 const router = Router();
 const businessController = new BusinessController();
 const teamController = new BusinessTeamController();
+const planController = new BusinessPlanController();
 const invitationCodeLimiter = createRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 });
 
 router.get("/", businessController.getAll);
+router.get("/plans/catalog", authenticate, planController.catalog);
 router.get("/owner/:ownerId", authenticate, requireSelfOrAdmin("ownerId"), businessController.getByOwner);
 router.get("/invitations/:token", authenticate, teamController.preview);
 router.post("/invitations/:token/accept", authenticate, teamController.accept);
 router.post("/invitations/accept-code", authenticate, invitationCodeLimiter, validateDto(AcceptBusinessInvitationCodeDto), teamController.acceptCode);
 router.get("/:id/team", authenticate, requireBusinessPermission("team.manage", "id"), teamController.list);
+router.get("/:id/plan", authenticate, requireBusinessPermission("settings.update", "id"), planController.get);
+router.patch("/:id/plan", authenticate, authorize("admin"), validateDto(AssignBusinessPlanDto), planController.assign);
 router.post("/:id/invitations", authenticate, requireBusinessPermission("team.manage", "id"), validateDto(InviteBusinessMemberDto), teamController.invite);
 router.delete("/:id/invitations/:invitationId", authenticate, requireBusinessPermission("team.manage", "id"), teamController.cancel);
 router.patch("/:id/members/:userId", authenticate, requireBusinessPermission("team.manage", "id"), validateDto(UpdateBusinessMemberRoleDto), teamController.updateMember);
