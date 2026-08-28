@@ -66,8 +66,30 @@ export class PendingOrderService {
     const order = await AppDataSource.getRepository(Orders).findOne({ where: { orderId }, relations: ["orderDetails", "orderDetails.orderDetailOptions"] });
     if (!order) throw new HttpError(404, "Orden no encontrada");
     if (Number(order.userId) !== Number(actor.userId)) throw new HttpError(403, "Sólo el cliente de la orden puede modificarla");
-    if (order.status !== "pending") throw new HttpError(409, "La orden ya fue aceptada y está bloqueada para edición");
-    if (Number(order.version) !== expectedVersion) throw new HttpError(409, "La orden cambió desde que comenzaste a editarla. Actualiza y vuelve a intentarlo");
+    if (order.status !== "pending") {
+      await this.auditService.record({
+        orderId,
+        businessId: order.businessId,
+        actorUserId: actor.userId,
+        actorRole: actor.role || "customer",
+        action: "ORDER_EDIT_BLOCKED",
+        orderVersion: order.version,
+        metadata: { reason: "STATUS_LOCKED", currentStatus: order.status, expectedVersion, actualVersion: Number(order.version) },
+      });
+      throw new HttpError(409, "La orden ya fue aceptada y está bloqueada para edición");
+    }
+    if (Number(order.version) !== expectedVersion) {
+      await this.auditService.record({
+        orderId,
+        businessId: order.businessId,
+        actorUserId: actor.userId,
+        actorRole: actor.role || "customer",
+        action: "ORDER_EDIT_BLOCKED",
+        orderVersion: order.version,
+        metadata: { reason: "VERSION_CONFLICT", currentStatus: order.status, expectedVersion, actualVersion: Number(order.version) },
+      });
+      throw new HttpError(409, "La orden cambió desde que comenzaste a editarla. Actualiza y vuelve a intentarlo");
+    }
 
     const before = {
       total: Number(order.total || 0),
