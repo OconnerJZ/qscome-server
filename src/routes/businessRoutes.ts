@@ -5,22 +5,25 @@ import { requireBusinessPermission, requireSelfOrAdmin } from "../middlewares/ow
 import { validateDto } from "../middlewares/validateDto";
 import { CreateBusinessDto } from "../dtos/business.dto";
 import { BusinessTeamController } from "../controllers/BusinessTeamController";
+import { AcceptBusinessInvitationCodeDto, InviteBusinessMemberDto, TransferBusinessOwnershipDto, UpdateBusinessMemberRoleDto } from "../dtos/businessTeam.dto";
+import { createRateLimiter } from "../middlewares/rateLimit";
 
 const router = Router();
 const businessController = new BusinessController();
 const teamController = new BusinessTeamController();
+const invitationCodeLimiter = createRateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 });
 
 router.get("/", businessController.getAll);
 router.get("/owner/:ownerId", authenticate, requireSelfOrAdmin("ownerId"), businessController.getByOwner);
 router.get("/invitations/:token", authenticate, teamController.preview);
 router.post("/invitations/:token/accept", authenticate, teamController.accept);
-router.post("/invitations/accept-code", authenticate, teamController.acceptCode);
+router.post("/invitations/accept-code", authenticate, invitationCodeLimiter, validateDto(AcceptBusinessInvitationCodeDto), teamController.acceptCode);
 router.get("/:id/team", authenticate, requireBusinessPermission("team.manage", "id"), teamController.list);
-router.post("/:id/invitations", authenticate, requireBusinessPermission("team.manage", "id"), teamController.invite);
+router.post("/:id/invitations", authenticate, requireBusinessPermission("team.manage", "id"), validateDto(InviteBusinessMemberDto), teamController.invite);
 router.delete("/:id/invitations/:invitationId", authenticate, requireBusinessPermission("team.manage", "id"), teamController.cancel);
-router.patch("/:id/members/:userId", authenticate, requireBusinessPermission("team.manage", "id"), teamController.updateMember);
+router.patch("/:id/members/:userId", authenticate, requireBusinessPermission("team.manage", "id"), validateDto(UpdateBusinessMemberRoleDto), teamController.updateMember);
 router.delete("/:id/members/:userId", authenticate, requireBusinessPermission("team.manage", "id"), teamController.removeMember);
-router.post("/:id/ownership-transfers", authenticate, requireBusinessPermission("ownership.transfer", "id"), teamController.transfer);
+router.post("/:id/ownership-transfers", authenticate, requireBusinessPermission("ownership.transfer", "id"), validateDto(TransferBusinessOwnershipDto), teamController.transfer);
 router.get("/:id/menu", businessController.getMenu);
 router.get("/:id", businessController.getById);
 
