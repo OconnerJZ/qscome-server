@@ -61,12 +61,14 @@ export class BusinessService {
 
   async update(businessId: number, body: any) {
     const business = await this.businessRepo.findOne({ where: { businessId } }); if (!business) throw new HttpError(404, "Negocio no encontrado");
-    const { business_name, phone, email, logo_url, banner_url, is_open, has_delivery, prep_time_min, estimated_delivery_min } = body;
+    const { business_name, phone, email, logo_url, banner_url, facebook_url, instagram_url, is_open, has_delivery, prep_time_min, estimated_delivery_min } = body;
     if (business_name !== undefined) business.businessName = business_name || null;
     if (phone !== undefined) business.phone = phone || null;
     if (email !== undefined) business.email = email || null;
     if (logo_url !== undefined) business.logoUrl = logo_url || null;
     if (banner_url !== undefined) business.bannerUrl = banner_url || null;
+    if (facebook_url !== undefined) business.facebookUrl = String(facebook_url || "").trim() || null;
+    if (instagram_url !== undefined) business.instagramUrl = String(instagram_url || "").trim() || null;
     if (typeof is_open === "boolean") business.isOpen = is_open;
     if (typeof has_delivery === "boolean") business.hasDelivery = has_delivery;
     if (prep_time_min !== undefined) business.prepTimeMin = Number(prep_time_min) || 0;
