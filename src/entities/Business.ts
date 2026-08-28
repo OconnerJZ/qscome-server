@@ -47,6 +47,12 @@ export class Business {
   @Column("varchar", { name: "banner_url", nullable: true, length: 255 })
   bannerUrl!: string | null;
 
+  @Column("varchar", { name: "facebook_url", nullable: true, length: 500 })
+  facebookUrl!: string | null;
+
+  @Column("varchar", { name: "instagram_url", nullable: true, length: 500 })
+  instagramUrl!: string | null;
+
   @Column("int", { name: "prep_time_min", nullable: true })
   prepTimeMin!: number | null;
 
