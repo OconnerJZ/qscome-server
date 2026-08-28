@@ -5,6 +5,7 @@ import { OrderDetails } from "../entities/OrderDetails";
 import { OrderDetailOptions, OrderModifierState } from "../entities/OrderDetailOptions";
 import { OrderStatusHistory } from "../entities/OrderStatusHistory";
 import { Menus } from "../entities/Menus";
+import { UserAddresses } from "../entities/UserAddresses";
 import { HttpError } from "../utils/httpError";
 import { formatOrder, getStatusLabel, isValidStatus } from "../serializers/order.serializer";
 import { emitNewOrder, emitOrderStatusUpdate } from "../utils/socket";
@@ -96,6 +97,13 @@ export class OrderService {
 
     const newOrderId = await AppDataSource.transaction(async (manager) => {
       const orderRepo = manager.getRepository(Orders), detailRepo = manager.getRepository(OrderDetails), detailOptionRepo = manager.getRepository(OrderDetailOptions), historyRepo = manager.getRepository(OrderStatusHistory), menuRepo = manager.getRepository(Menus);
+      const normalizedAddressId = orderType === "delivery" && deliveryAddressId ? Number(deliveryAddressId) : null;
+      if (normalizedAddressId) {
+        const address = await manager.getRepository(UserAddresses).findOne({
+          where: { addressId: normalizedAddressId, userId },
+        });
+        if (!address) throw new HttpError(403, "La dirección guardada no pertenece al cliente");
+      }
       const pricedItems: PricedOrderItem[] = [];
       let calculatedTotal = 0;
       for (const item of items) {
@@ -111,7 +119,7 @@ export class OrderService {
         pricedItems.push({ ...item, quantity, itemName: menu.itemName || `Producto ${menu.menuId}`, basePrice, unitPrice, subtotal, modifierSnapshots: snapshots });
       }
       const hasCoords = orderType === "delivery" && deliveryLocation?.latitude != null && deliveryLocation?.longitude != null;
-      const order = orderRepo.create({ userId, businessId: normalizedBusinessId, orderType, customerName, customerPhone, deliveryAddress: orderType === "delivery" ? deliveryAddress : null, deliveryAddressId: orderType === "delivery" && deliveryAddressId ? Number(deliveryAddressId) : null, deliveryLatitude: hasCoords ? Number(deliveryLocation!.latitude).toFixed(8) : null, deliveryLongitude: hasCoords ? Number(deliveryLocation!.longitude).toFixed(8) : null, deliveryCity: orderType === "delivery" ? deliveryLocation?.city || null : null, deliveryPostalCode: orderType === "delivery" ? deliveryLocation?.postalCode || null : null, orderNotes: notes, total: calculatedTotal.toFixed(2), status: "pending", deliveryStatus: "unassigned", orderDate: new Date() });
+      const order = orderRepo.create({ userId, businessId: normalizedBusinessId, orderType, customerName, customerPhone, deliveryAddress: orderType === "delivery" ? deliveryAddress : null, deliveryAddressId: normalizedAddressId, deliveryLatitude: hasCoords ? Number(deliveryLocation!.latitude).toFixed(8) : null, deliveryLongitude: hasCoords ? Number(deliveryLocation!.longitude).toFixed(8) : null, deliveryCity: orderType === "delivery" ? deliveryLocation?.city || null : null, deliveryPostalCode: orderType === "delivery" ? deliveryLocation?.postalCode || null : null, orderNotes: notes, total: calculatedTotal.toFixed(2), status: "pending", deliveryStatus: "unassigned", orderDate: new Date() });
       await orderRepo.save(order);
       for (const item of pricedItems) {
         const detail = await detailRepo.save(detailRepo.create({ orderId: order.orderId, menuId: item.id, itemName: item.itemName, unitPrice: item.unitPrice.toFixed(2), quantity: item.quantity, subtotal: item.subtotal.toFixed(2), notes: item.note || null, kitchenStatus: "pending" }));

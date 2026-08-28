@@ -10,7 +10,9 @@ import { AppDataSource } from "../utils/db";
 import { BusinessOwners } from "../entities/BusinessOwners";
 import { Orders } from "../entities/Orders";
 import { Menus } from "../entities/Menus";
+import { Payments } from "../entities/Payments";
 import { BusinessPermission, getBusinessMembership } from "../security/businessAccess";
+import { hasDirectPaymentAccess } from "../security/paymentAccess";
 
 export const isAdmin = (user: any): boolean => user?.role === "admin";
 
@@ -253,6 +255,36 @@ export const requireOrderAccess =
       return res
         .status(403)
         .json({ success: false, message: "No tienes acceso a esta orden" });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  };
+
+/** Acceso a pago: cliente de la orden, admin o miembro con payments.review. */
+export const requirePaymentAccess =
+  (param = "id") =>
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const paymentId = parseId(req.params[param]);
+      if (!paymentId) return res.status(400).json({ success: false, message: "Pago inválido" });
+      const payment = await AppDataSource.getRepository(Payments).findOne({
+        where: { paymentId },
+        relations: ["order"],
+      });
+      if (!payment) return res.status(404).json({ success: false, message: "Pago no encontrado" });
+      if (hasDirectPaymentAccess({
+        requesterUserId: req.user?.userId,
+        globalRole: req.user?.role,
+        paymentUserId: payment.userId,
+        orderUserId: payment.order?.userId,
+      })) return next();
+      const businessId = Number(payment.order?.businessId);
+      const access = businessId ? await getBusinessMembership(Number(req.user?.userId), businessId) : null;
+      if (access?.permissions.includes("payments.review")) {
+        req.businessAccess = { businessId, role: access.role, permissions: access.permissions };
+        return next();
+      }
+      return res.status(403).json({ success: false, message: "No tienes acceso a este pago" });
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message });
     }

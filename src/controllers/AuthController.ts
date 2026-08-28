@@ -6,6 +6,7 @@ import { OAuth2Client } from "google-auth-library";
 import * as bcrypt from "bcrypt";
 import { signAuthToken } from "../utils/authToken";
 import { normalizeBusinessRole, permissionsForRole } from "../security/businessAccess";
+import { getPublicRegistrationRole } from "../security/publicRegistration";
 
 export class AuthController {
   private readonly userRepo = AppDataSource.getRepository(Users);
@@ -15,7 +16,7 @@ export class AuthController {
   // POST /api/auth/register
   async register(req: Request, res: Response) {
     try {
-      const { user_name, email, password, phone, role, isBusiness } = req.body;
+      const { user_name, email, password, phone, isBusiness } = req.body;
 
       // Verificar si el usuario ya existe
       const existingUser = await this.userRepo.findOne({ where: { email } });
@@ -26,10 +27,10 @@ export class AuthController {
         });
       }
 
-      const auxRole = isBusiness ? "owner" : role;
-      // Obtener rol (por defecto 'customer')
+      const registrationRole = getPublicRegistrationRole(isBusiness);
+      // El cliente nunca decide su rol global desde el registro público.
       const userRole = await this.roleRepo.findOne({
-        where: { roleName: auxRole || "customer" },
+        where: { roleName: registrationRole },
       });
 
       if (!userRole) {
@@ -195,9 +196,9 @@ export class AuthController {
       });
 
       if (!user) {
-        const auxRole = isBusiness ? "owner" : "customer";
+        const registrationRole = getPublicRegistrationRole(isBusiness);
         const userRole = await this.roleRepo.findOne({
-          where: { roleName: auxRole || "customer" },
+          where: { roleName: registrationRole },
         });
         if (!userRole) {
           return res.status(400).json({

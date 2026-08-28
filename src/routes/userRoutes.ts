@@ -2,6 +2,7 @@ import { Request, Response, Router } from "express";
 import { UserController } from "../controllers/UserController";
 import { authenticate } from "../middlewares/authMiddleware";
 import { authorize } from "../middlewares/roleMiddleware";
+import { requireSelfOrAdmin } from "../middlewares/ownership";
 
 const router = Router();
 const userController = new UserController();
@@ -14,11 +15,13 @@ router.get("/",
 
 router.get("/:id", 
     authenticate,
+    requireSelfOrAdmin("id"),
     (req: Request, res: Response) => userController.getById(req, res)
 );
 
 router.put("/:id", 
     authenticate,
+    requireSelfOrAdmin("id"),
     (req: Request, res: Response) => userController.update(req, res)
 );
 

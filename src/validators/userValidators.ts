@@ -12,7 +12,12 @@ export const registerValidation = [
         .matches(/\d/).withMessage("La contraseña debe contener al menos un número"),
     body("phone")
         .optional()
-        .isMobilePhone("es-MX").withMessage("Número de teléfono inválido")
+        .isMobilePhone("es-MX").withMessage("Número de teléfono inválido"),
+    body("isBusiness")
+        .optional()
+        .isBoolean({ strict: true }).withMessage("isBusiness debe ser booleano"),
+    body("role")
+        .not().exists().withMessage("El rol no se puede asignar desde el registro público")
 ];
 
 export const loginValidation = [
