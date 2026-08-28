@@ -3,7 +3,7 @@ import { AuthTokenPayload, verifyAuthToken } from "../utils/authToken";
 
 export interface AuthRequest extends Request {
     user?: AuthTokenPayload;
-    businessAccess?: { businessId: number; role: string; permissions: string[] };
+    businessAccess?: { businessId: number; role: string; permissions: readonly string[] };
 }
 
 export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {

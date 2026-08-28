@@ -5,6 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
+    "test:unit": "node --test -r ts-node/register src/security/*.test.ts",
     "dev": "nodemon --exec ts-node server.ts",
     "start": "node dist/server.js",
     "start:dev": "ts-node server.ts",

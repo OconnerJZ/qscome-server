@@ -1,5 +1,5 @@
 import { Column, Entity, Index, PrimaryGeneratedColumn } from "typeorm";
-import type { BusinessRole } from "../security/businessAccess";
+import type { BusinessRole } from "../security/businessRoles";
 
 export type BusinessInvitationType = "membership" | "ownership_transfer";
 export type BusinessInvitationStatus = "pending" | "accepted" | "cancelled" | "expired";
