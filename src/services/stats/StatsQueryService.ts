@@ -2,6 +2,18 @@ import { AppDataSource } from "../../utils/db";
 
 export interface DateWindow { start: Date; end: Date; }
 
+export const RETURNING_CUSTOMERS_QUERY = `
+  SELECT COUNT(*) returning_customers FROM (
+    SELECT DISTINCT current_orders.user_id
+    FROM orders current_orders
+    WHERE current_orders.business_id = ? AND current_orders.status = 'completed'
+      AND current_orders.user_id IS NOT NULL AND current_orders.created_at BETWEEN ? AND ?
+      AND EXISTS (SELECT 1 FROM orders previous_orders WHERE previous_orders.business_id = current_orders.business_id
+        AND previous_orders.user_id = current_orders.user_id AND previous_orders.status = 'completed'
+        AND previous_orders.created_at < ?)
+  ) returning_users
+`;
+
 export class StatsQueryService {
   async summary(businessId: number, window: DateWindow) {
     const [row] = await AppDataSource.query(`
@@ -23,17 +35,10 @@ export class StatsQueryService {
   }
 
   async returningCustomers(businessId: number, window: DateWindow) {
-    const [row] = await AppDataSource.query(`
-      SELECT COUNT(*) returning_customers FROM (
-        SELECT DISTINCT current_orders.user_id
-        FROM orders current_orders
-        WHERE current_orders.business_id = ? AND current_orders.status = 'completed'
-          AND current_orders.user_id IS NOT NULL AND current_orders.created_at BETWEEN ? AND ?
-          AND EXISTS (SELECT 1 FROM orders previous_orders WHERE previous_orders.business_id = current_orders.business_id
-            AND previous_orders.user_id = current_orders.user_id AND previous_orders.status = 'completed'
-            AND previous_orders.created_at < ?)
-      ) returning
-    `, [businessId, window.start, window.end, window.start]);
+    const [row] = await AppDataSource.query(
+      RETURNING_CUSTOMERS_QUERY,
+      [businessId, window.start, window.end, window.start],
+    );
     return Number(row?.returning_customers || 0);
   }
 
