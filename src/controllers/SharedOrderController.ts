@@ -15,6 +15,9 @@ export class SharedOrderController {
   joinToken = async (req: Request, res: Response, next: NextFunction) => {
     try { res.json({ success: true, data: await this.service.joinByToken(req.params.token, this.userId(req)) }); } catch (error) { next(error); }
   };
+  active = async (req: Request, res: Response, next: NextFunction) => {
+    try { res.json({ success: true, data: await this.service.getActive(this.userId(req)) }); } catch (error) { next(error); }
+  };
   get = async (req: Request, res: Response, next: NextFunction) => {
     try { res.json({ success: true, data: await this.service.get(req.params.id, this.userId(req)) }); } catch (error) { next(error); }
   };

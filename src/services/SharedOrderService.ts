@@ -26,6 +26,7 @@ export class SharedOrderService {
   async create(hostUserId: number, title: string | undefined, codeLength: SharedOrderCodeLength) {
     const secrets = createSharedOrderSecrets(codeLength);
     const session = await AppDataSource.transaction(async (manager) => {
+      await this.assertNoOtherActiveSession(manager, hostUserId);
       const sessionRepo = manager.getRepository(SharedOrderSession);
       const participantRepo = manager.getRepository(SharedOrderParticipant);
       const created = await sessionRepo.save(sessionRepo.create({ sessionId: randomUUID(), hostUserId, title: String(title || "").trim().slice(0, 100) || null, status: "open", codeHash: hashSharedOrderCode(secrets.code), linkTokenHash: hashSharedOrderToken(secrets.token), codeLength, expiresAt: createSharedOrderExpiry(), lockedAt: null, submittedAt: null }));
@@ -52,6 +53,7 @@ export class SharedOrderService {
     await AppDataSource.transaction(async (manager) => {
       const sessionRepo = manager.getRepository(SharedOrderSession);
       const participantRepo = manager.getRepository(SharedOrderParticipant);
+      await this.assertNoOtherActiveSession(manager, userId, sessionId);
       const session = await sessionRepo.findOne({ where: { sessionId }, lock: { mode: "pessimistic_write" } });
       this.assertJoinable(session);
       const existing = await participantRepo.findOne({ where: { sessionId, userId } });
@@ -78,6 +80,18 @@ export class SharedOrderService {
     const self = session.participants.find((participant) => participant.userId === userId && participant.status === "active");
     if (!self) throw new HttpError(403, "No perteneces a esta orden compartida");
     return this.format(session, self);
+  }
+
+  async getActive(userId: number) {
+    const memberships = await AppDataSource.getRepository(SharedOrderParticipant).find({
+      where: { userId, status: "active" },
+      relations: ["session"],
+      order: { joinedAt: "DESC" },
+    });
+    const membership = memberships.find((entry) =>
+      entry.session?.status === "open" && entry.session.expiresAt.getTime() > Date.now(),
+    );
+    return membership ? this.get(membership.sessionId, userId) : null;
   }
 
   async getAudit(sessionId: string, userId: number) {
@@ -262,6 +276,19 @@ export class SharedOrderService {
     if (!menu.isAvailable || menu.isArchived) throw new HttpError(409, "El producto ya no está disponible");
     buildModifierSnapshots(menu, modifiers);
     return menu;
+  }
+
+  private async assertNoOtherActiveSession(manager: EntityManager, userId: number, allowedSessionId?: string) {
+    const memberships = await manager.getRepository(SharedOrderParticipant).find({
+      where: { userId, status: "active" },
+      relations: ["session"],
+    });
+    const active = memberships.find((entry) =>
+      entry.sessionId !== allowedSessionId
+      && entry.session?.status === "open"
+      && entry.session.expiresAt.getTime() > Date.now(),
+    );
+    if (active) throw new HttpError(409, "Ya perteneces a una orden compartida. Sal del grupo actual antes de abrir otro.");
   }
 
   private async bumpSession(manager: EntityManager, session: SharedOrderSession) { session.updatedAt = new Date(); await manager.getRepository(SharedOrderSession).save(session); }

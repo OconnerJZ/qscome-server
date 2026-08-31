@@ -13,6 +13,7 @@ router.use(authenticate);
 router.post("/", createSharedOrderValidation, validateRequest, controller.create);
 router.post("/join/code", joinLimiter, joinSharedOrderCodeValidation, validateRequest, controller.joinCode);
 router.post("/join/:token", joinLimiter, controller.joinToken);
+router.get("/active", controller.active);
 router.get("/:id/audit", sharedSessionValidation, validateRequest, controller.audit);
 router.get("/:id", sharedSessionValidation, validateRequest, controller.get);
 router.post("/:id/items", addSharedItemValidation, validateRequest, controller.addItem);

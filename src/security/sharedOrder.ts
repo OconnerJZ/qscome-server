@@ -9,5 +9,5 @@ export const createSharedOrderSecrets = (length: SharedOrderCodeLength = 6) => (
   code: Array.from({ length }, () => String(randomInt(0, 10))).join(""),
   token: randomBytes(32).toString("hex"),
 });
-export const sharedParticipantLabel = (sequence: number) => `Empaquetado ${sequence}`;
+export const sharedParticipantLabel = (sequence: number) => `Selección ${sequence}`;
 export const createSharedOrderExpiry = () => new Date(Date.now() + 24 * 60 * 60 * 1000);

@@ -9,5 +9,5 @@ test("genera códigos numéricos de cuatro o seis dígitos", () => {
 
 test("normaliza código y genera etiqueta anónima operativa", () => {
   assert.equal(normalizeSharedOrderCode(" 12-34 56 "), "123456");
-  assert.equal(sharedParticipantLabel(3), "Empaquetado 3");
+  assert.equal(sharedParticipantLabel(3), "Selección 3");
 });
