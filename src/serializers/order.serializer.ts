@@ -12,6 +12,7 @@ export const formatOrder = (order: Orders) => ({
   version: Number(order.version || 1),
   userId: order.userId,
   businessId: order.businessId,
+  sharedSessionId: order.sharedSessionId,
   businessName: order.business?.businessName,
   customerName: order.customerName,
   customerPhone: order.customerPhone,

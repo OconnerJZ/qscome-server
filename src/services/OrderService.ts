@@ -12,7 +12,9 @@ import { HttpError } from "../utils/httpError";
 import { formatOrder, getStatusLabel, isValidStatus } from "../serializers/order.serializer";
 import { emitNewOrder, emitOrderStatusUpdate } from "../utils/socket";
 import { OrderAuditService } from "./OrderAuditService";
-import { EntityManager } from "typeorm";
+import { EntityManager, In } from "typeorm";
+import { SharedOrderParticipant } from "../entities/SharedOrderParticipant";
+import { getSharedOrderParticipantUserIds } from "../security/sharedOrderAccess";
 
 export interface CreateOrderModifier { choiceId: number; state?: OrderModifierState; }
 export interface CreateOrderItem { id: number; quantity: number; note?: string | null; price?: number; modifiers?: CreateOrderModifier[]; participantLabel?: string | null; }
@@ -89,7 +91,16 @@ export class OrderService {
     if (!order) throw new HttpError(404, "Orden no encontrada");
     return formatOrder(order);
   }
-  async getByUser(userId: number) { return (await this.orderRepo.find({ where: { userId }, relations: DETAIL_RELATIONS, order: { createdAt: "DESC" } })).map(formatOrder); }
+  async getByUser(userId: number) {
+    const memberships = await AppDataSource.getRepository(SharedOrderParticipant).find({ where: { userId, status: "active" } });
+    const sharedSessionIds = [...new Set(memberships.map((membership) => membership.sessionId))];
+    const where = sharedSessionIds.length ? [{ userId }, { sharedSessionId: In(sharedSessionIds) }] : { userId };
+    const orders = await this.orderRepo.find({ where, relations: DETAIL_RELATIONS, order: { createdAt: "DESC" } });
+    return orders.map((order) => ({
+      ...formatOrder(order),
+      viewerCanManage: Number(order.userId) === Number(userId),
+    }));
+  }
   async getByBusiness(businessId: number) { return (await this.orderRepo.find({ where: { businessId }, relations: ["user", "orderDetails", "orderDetails.menu", "orderDetails.orderDetailOptions", "orderStatusHistories"], order: { createdAt: "DESC" } })).map(formatOrder); }
 
   async create(input: CreateOrderInput) {
@@ -205,7 +216,8 @@ export class OrderService {
       await this.auditService.record({ orderId, businessId: currentOrder.businessId, actorUserId: actor.userId, actorRole: actor.role, action: status === "cancelled" ? "ORDER_CANCELLED" : "ORDER_STATUS_CHANGED", orderVersion: currentOrder.version, metadata: { from: previousStatus, to: status, note: note || null } }, manager);
       return currentOrder;
     });
-    if (order.userId) emitOrderStatusUpdate(order.userId, { orderId: order.orderId, status: order.status, statusLabel: getStatusLabel(order.status!), timestamp: new Date().toISOString() });
+    const participantIds = order.sharedSessionId ? await getSharedOrderParticipantUserIds(order.sharedSessionId) : [];
+    if (order.userId) emitOrderStatusUpdate([order.userId, ...participantIds], { orderId: order.orderId, status: order.status, statusLabel: getStatusLabel(order.status!), timestamp: new Date().toISOString() });
     return { orderId: order.orderId, status: order.status };
   }
 }

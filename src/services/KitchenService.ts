@@ -6,6 +6,7 @@ import { HttpError } from "../utils/httpError";
 import { formatOrder, getStatusLabel } from "../serializers/order.serializer";
 import { emitKitchenItemUpdate, emitOrderStatusUpdate } from "../utils/socket";
 import { OrderAuditService } from "./OrderAuditService";
+import { getSharedOrderParticipantUserIds } from "../security/sharedOrderAccess";
 
 interface KitchenActor { userId?: number; role?: string; }
 const KITCHEN_STATUSES: KitchenItemStatus[] = ["pending", "preparing", "ready"];
@@ -85,8 +86,10 @@ export class KitchenService {
     const updatedItem = formatted.items.find((item) => Number(item.detailId) === Number(detailId));
 
     const payload = { orderId, businessId: fullOrder.businessId, detailId, status, orderStatus: fullOrder.status, item: updatedItem, kitchenProgress: formatted.kitchenProgress, timestamp: new Date().toISOString(), changedBy: actor.userId };
-    emitKitchenItemUpdate(Number(fullOrder.businessId), fullOrder.userId, payload);
-    if (orderStatusChanged && fullOrder.userId) emitOrderStatusUpdate(fullOrder.userId, { orderId: fullOrder.orderId, status: fullOrder.status, statusLabel: getStatusLabel(fullOrder.status || "preparing"), timestamp: new Date().toISOString() });
+    const participantIds = fullOrder.sharedSessionId ? await getSharedOrderParticipantUserIds(fullOrder.sharedSessionId) : [];
+    const audience = [fullOrder.userId, ...participantIds];
+    emitKitchenItemUpdate(Number(fullOrder.businessId), audience, payload);
+    if (orderStatusChanged && fullOrder.userId) emitOrderStatusUpdate(audience.filter((id): id is number => Boolean(id)), { orderId: fullOrder.orderId, status: fullOrder.status, statusLabel: getStatusLabel(fullOrder.status || "preparing"), timestamp: new Date().toISOString() });
     return { orderId, detailId, status, orderStatus: fullOrder.status, kitchenProgress: formatted.kitchenProgress, item: updatedItem };
   }
 }

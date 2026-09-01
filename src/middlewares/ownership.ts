@@ -13,6 +13,7 @@ import { Menus } from "../entities/Menus";
 import { Payments } from "../entities/Payments";
 import { BusinessPermission, getBusinessMembership } from "../security/businessAccess";
 import { hasDirectPaymentAccess } from "../security/paymentAccess";
+import { getActiveSharedOrderParticipant } from "../security/sharedOrderAccess";
 
 export const isAdmin = (user: any): boolean => user?.role === "admin";
 
@@ -248,6 +249,9 @@ export const requireOrderAccess =
 
       const uid = req.user?.userId;
       if (order.userId === uid) return next();
+      if (uid && order.sharedSessionId && await getActiveSharedOrderParticipant(order.sharedSessionId, uid)) {
+        return next();
+      }
       if (order.businessId && (await ownsBusiness(uid, order.businessId))) {
         return next();
       }
