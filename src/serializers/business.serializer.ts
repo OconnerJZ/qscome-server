@@ -26,6 +26,7 @@ const formatSocial = (b: Business) => ({
 
 const formatBusinessProfile = (b: Business) => ({
   id: b.businessId, name: b.businessName, title: b.businessName, phone: b.phone, email: b.email,
+  description: b.description,
   logo: b.logoUrl, logoUrl: b.logoUrl, bannerUrl: b.bannerUrl, coverImage: getCoverImage(b), photos: formatPhotos(b),
   open: Boolean(b.isOpen), isOpen: Boolean(b.isOpen), hasDelivery: Boolean(b.hasDelivery), prepTimeMin: b.prepTimeMin,
   estimatedDeliveryMin: b.estimatedDeliveryMin, location: formatLocation(b), locations: b.locations || [], schedules: formatSchedules(b),

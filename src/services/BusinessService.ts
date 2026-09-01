@@ -14,9 +14,17 @@ import { HttpError } from "../utils/httpError";
 import { formatBusinessCard, formatOwnerBusinessCard, formatBusinessDetail, formatMenuItem } from "../serializers/business.serializer";
 import { normalizeBusinessRole, permissionsForRole } from "../security/businessAccess";
 import { assertUsableTransferConfig, normalizeTransferBankConfig } from "../security/transferPayment";
+import {
+  BusinessLocationDto,
+  BusinessPaymentMethodDto,
+  BusinessScheduleDto,
+  CreateBusinessDto,
+  UpdateBusinessDeliverySettingsDto,
+  UpdateBusinessDto,
+} from "../dtos/business.dto";
 
-interface ScheduleInput { day: string; isClosed?: boolean | null; opened?: string | null; closed?: string | null; isHoliday?: boolean | null; }
-export interface CreateBusinessInput { id: number; business_name?: string; phone?: string; logo_url?: string; locale?: Record<string, unknown>; schedule?: ScheduleInput[]; has_delivery?: boolean; food_type?: number[]; }
+type ScheduleInput = BusinessScheduleDto;
+export interface CreateBusinessInput extends CreateBusinessDto { id: number; }
 const PAYMENT_METHODS = ["cash", "card", "wallet", "transfer"] as const;
 type PaymentType = (typeof PAYMENT_METHODS)[number];
 const PROFILE_RELATIONS = ["locations", "businessFoodTypes", "businessFoodTypes.foodType", "businessSchedules", "businessDeliverySettings", "businessPaymentMethods", "businessPhotos"];
@@ -65,12 +73,13 @@ export class BusinessService {
     return menus.map(formatMenuItem);
   }
 
-  async update(businessId: number, body: any) {
+  async update(businessId: number, body: UpdateBusinessDto) {
     const business = await this.businessRepo.findOne({ where: { businessId } }); if (!business) throw new HttpError(404, "Negocio no encontrado");
-    const { business_name, phone, email, logo_url, banner_url, facebook_url, instagram_url, is_open, has_delivery, prep_time_min, estimated_delivery_min } = body;
+    const { business_name, phone, email, description, logo_url, banner_url, facebook_url, instagram_url, is_open, has_delivery, prep_time_min, estimated_delivery_min } = body;
     if (business_name !== undefined) business.businessName = business_name || null;
     if (phone !== undefined) business.phone = phone || null;
     if (email !== undefined) business.email = email || null;
+    if (description !== undefined) business.description = description.trim() || null;
     if (logo_url !== undefined) business.logoUrl = logo_url || null;
     if (banner_url !== undefined) business.bannerUrl = banner_url || null;
     if (facebook_url !== undefined) business.facebookUrl = String(facebook_url || "").trim() || null;
@@ -83,12 +92,19 @@ export class BusinessService {
   }
 
   async create(input: CreateBusinessInput) {
-    const { business_name, phone, logo_url, locale, schedule, has_delivery, food_type, id } = input;
+    const { business_name, phone, email, logo_url, locale, schedule, has_delivery, food_type, id } = input;
     if (!id) throw new HttpError(400, "Usuario inválido");
     const businessId = await AppDataSource.transaction(async (manager) => {
       const businessRepo = manager.getRepository(Business); const locationRepo = manager.getRepository(Locations); const scheduleRepo = manager.getRepository(BusinessSchedule); const bFoodTypesRepo = manager.getRepository(BusinessFoodTypes); const bDeliveryRepo = manager.getRepository(BusinessDeliverySettings); const bPaymentRepo = manager.getRepository(BusinessPaymentMethods); const bOwnerRepo = manager.getRepository(BusinessOwners); const userRepo = manager.getRepository(Users); const roleRepo = manager.getRepository(UserRoles);
-      const business = businessRepo.create({ businessName: business_name, phone, logoUrl: logo_url, isOpen: true, hasDelivery: has_delivery }); await businessRepo.save(business);
-      if (locale) await locationRepo.save(locationRepo.create({ businessId: business.businessId, ...locale }));
+      const business = businessRepo.create({ businessName: business_name, phone, email, logoUrl: logo_url, isOpen: true, hasDelivery: has_delivery }); await businessRepo.save(business);
+      if (locale) await locationRepo.save(locationRepo.create({
+        businessId: business.businessId,
+        address: locale.address || null,
+        city: locale.city || null,
+        postalCode: locale.postal_code || null,
+        latitude: locale.latitude || null,
+        longitude: locale.longitude || null,
+      }));
       if (schedule?.length) {
         const scheduleRows = schedule.map((entry) => scheduleRepo.create(normalizeSchedule(entry, business.businessId)));
         await scheduleRepo.save(scheduleRows);
@@ -104,7 +120,17 @@ export class BusinessService {
     return { id: businessId, name: business_name };
   }
 
-  async updateLocation(businessId: number, body: any) { let row = await this.locationRepo.findOne({ where: { businessId } }); if (!row) row = this.locationRepo.create({ businessId }); Object.assign(row, body); await this.locationRepo.save(row); return this.getById(businessId); }
+  async updateLocation(businessId: number, body: BusinessLocationDto) {
+    let row = await this.locationRepo.findOne({ where: { businessId } });
+    if (!row) row = this.locationRepo.create({ businessId });
+    if (body.address !== undefined) row.address = body.address.trim() || null;
+    if (body.city !== undefined) row.city = body.city.trim() || null;
+    if (body.postal_code !== undefined) row.postalCode = body.postal_code.trim() || null;
+    if (body.latitude !== undefined) row.latitude = body.latitude || null;
+    if (body.longitude !== undefined) row.longitude = body.longitude || null;
+    await this.locationRepo.save(row);
+    return this.getById(businessId);
+  }
   async updateSchedules(businessId: number, schedules: ScheduleInput[] = []) {
     const normalizedSchedules = schedules.map((schedule) => normalizeSchedule(schedule, businessId));
 
@@ -118,12 +144,22 @@ export class BusinessService {
 
     return this.getById(businessId);
   }
-  async updateDeliverySettings(businessId: number, body: any) { let row = await this.bDeliveryRepo.findOne({ where: { businessId } }); if (!row) row = this.bDeliveryRepo.create({ businessId }); const map: Record<string, string> = { delivery_radius_km: "deliveryRadiusKm", delivery_fee: "deliveryFee", min_order_amount: "minOrderAmount", estimated_time_min: "estimatedTimeMin", use_own_delivery: "useOwnDelivery" }; Object.entries(map).forEach(([from, to]) => { if (body[from] !== undefined) (row as any)[to] = body[from]; }); await this.bDeliveryRepo.save(row); return this.getById(businessId); }
-  async updatePaymentMethods(businessId: number, methods: any[] = []) {
+  async updateDeliverySettings(businessId: number, body: UpdateBusinessDeliverySettingsDto) {
+    let row = await this.bDeliveryRepo.findOne({ where: { businessId } });
+    if (!row) row = this.bDeliveryRepo.create({ businessId });
+    if (body.delivery_radius_km !== undefined) row.deliveryRadiusKm = String(body.delivery_radius_km);
+    if (body.delivery_fee !== undefined) row.deliveryFee = String(body.delivery_fee);
+    if (body.min_order_amount !== undefined) row.minOrderAmount = String(body.min_order_amount);
+    if (body.estimated_time_min !== undefined) row.estimatedTimeMin = body.estimated_time_min;
+    if (body.use_own_delivery !== undefined) row.useOwnDelivery = body.use_own_delivery;
+    await this.bDeliveryRepo.save(row);
+    return this.getById(businessId);
+  }
+  async updatePaymentMethods(businessId: number, methods: BusinessPaymentMethodDto[] = []) {
     const normalized = methods.map((raw) => {
-      const method = (typeof raw === "string" ? raw : raw?.method) as PaymentType;
+      const method = raw.method as PaymentType;
       if (!PAYMENT_METHODS.includes(method)) throw new HttpError(400, "Método de pago inválido");
-      const isActive = typeof raw === "string" ? true : (raw?.is_active ?? raw?.isActive) !== false;
+      const isActive = raw.is_active !== false;
       const config = method === "transfer" ? normalizeTransferBankConfig(raw?.config) : null;
       if (config && isActive) assertUsableTransferConfig(config);
       return { businessId, method, isActive, configJson: config ? JSON.stringify(config) : null };

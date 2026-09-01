@@ -10,7 +10,7 @@ import { BusinessPaymentMethods } from "../entities/BusinessPaymentMethods";
 import { assertUsableTransferConfig, normalizeTransferBankConfig } from "../security/transferPayment";
 import { HttpError } from "../utils/httpError";
 import { formatOrder, getStatusLabel, isValidStatus } from "../serializers/order.serializer";
-import { emitNewOrder, emitOrderStatusUpdate } from "../utils/socket";
+import { emitNewOrder, emitOrderStatusUpdate, emitOrderUpdated } from "../utils/socket";
 import { OrderAuditService } from "./OrderAuditService";
 import { EntityManager, In } from "typeorm";
 import { SharedOrderParticipant } from "../entities/SharedOrderParticipant";
@@ -217,7 +217,18 @@ export class OrderService {
       return currentOrder;
     });
     const participantIds = order.sharedSessionId ? await getSharedOrderParticipantUserIds(order.sharedSessionId) : [];
-    if (order.userId) emitOrderStatusUpdate([order.userId, ...participantIds], { orderId: order.orderId, status: order.status, statusLabel: getStatusLabel(order.status!), timestamp: new Date().toISOString() });
+    const timestamp = new Date().toISOString();
+    emitOrderUpdated(Number(order.businessId), null, {
+      id: order.orderId,
+      orderId: order.orderId,
+      businessId: order.businessId,
+      status: order.status,
+      updatedAt: timestamp,
+    });
+    const realtimeAudience = [order.userId, ...participantIds]
+      .filter((userId): userId is number => Number.isInteger(Number(userId)))
+      .map(Number);
+    if (realtimeAudience.length) emitOrderStatusUpdate(realtimeAudience, { orderId: order.orderId, status: order.status, statusLabel: getStatusLabel(order.status!), timestamp });
     return { orderId: order.orderId, status: order.status };
   }
 }
