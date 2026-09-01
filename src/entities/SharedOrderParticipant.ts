@@ -1,6 +1,7 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 import { SharedOrderSession } from "./SharedOrderSession";
 import { SharedOrderItem } from "./SharedOrderItem";
+import { Users } from "./Users";
 
 @Entity("shared_order_participants", { schema: "qscome" })
 @Index("uq_shared_participant_user", ["sessionId", "userId"], { unique: true })
@@ -15,5 +16,7 @@ export class SharedOrderParticipant {
   @Column("datetime", { name: "joined_at", default: () => "CURRENT_TIMESTAMP" }) joinedAt!: Date;
   @ManyToOne(() => SharedOrderSession, (session) => session.participants, { onDelete: "CASCADE" })
   @JoinColumn([{ name: "session_id", referencedColumnName: "sessionId" }]) session!: SharedOrderSession;
+  @ManyToOne(() => Users, { onDelete: "CASCADE" })
+  @JoinColumn([{ name: "user_id", referencedColumnName: "userId" }]) user!: Users;
   @OneToMany(() => SharedOrderItem, (item) => item.participant) items!: SharedOrderItem[];
 }
