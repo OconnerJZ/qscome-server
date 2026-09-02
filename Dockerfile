@@ -1,7 +1,10 @@
 FROM node:22
 
 WORKDIR /app
+ARG APP_VERSION=development
+ENV APP_VERSION=${APP_VERSION}
 ENV STORAGE_ROOT=/app
+ENV TRUST_PROXY_HOPS=1
 
 # Instalar netcat (para wait-for-db.sh)
 RUN apt-get update && apt-get install -y netcat-openbsd curl && rm -rf /var/lib/apt/lists/*
@@ -42,6 +45,9 @@ RUN chmod +x /app/wait-for-db.sh
 USER appuser
 
 EXPOSE 3000
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
+  CMD curl --fail --silent --show-error http://localhost:3000/health > /dev/null || exit 1
 
 # Ejecutar JS compilado
 CMD ["/app/wait-for-db.sh", "db", "node", "dist/server.js"]

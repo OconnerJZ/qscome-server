@@ -20,11 +20,18 @@ import { initializeSocket } from "./src/utils/socket";
 import { corsOrigin } from "./src/utils/cors";
 import sharedOrderRoutes from "./src/routes/sharedOrderRoutes";
 import { ensureStorageDirectories, publicUploadsPath } from "./src/config/storage";
+import { HealthService } from "./src/services/HealthService";
 
 dotenv.config({ debug: false });
 
 const app = express();
 const httpServer = http.createServer(app);
+const healthService = new HealthService();
+const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS || "1", 10);
+if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 5) {
+  throw new Error("TRUST_PROXY_HOPS debe ser un entero entre 0 y 5");
+}
+if (trustProxyHops > 0) app.set("trust proxy", trustProxyHops);
 initializeSocket(httpServer);
 
 // Middlewares globales
@@ -53,26 +60,13 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", async (req, res) => {
-  try {
-    await Promise.race([
-      AppDataSource.query("SELECT 1"),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("timeout")), 3000)
-      ),
-    ]);
-
-    res.json({
-      status: "OK",
-      database: "healthy",
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    res.status(503).json({
-      status: "ERROR",
-      database: "unhealthy",
-      error: error,
-    });
-  }
+  const health = await healthService.check();
+  res.status(health.healthy ? 200 : 503).json({
+    status: health.healthy ? "OK" : "ERROR",
+    version: process.env.APP_VERSION || "development",
+    services: health.services,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // API Routes
