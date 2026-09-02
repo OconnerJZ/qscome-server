@@ -1,19 +1,13 @@
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
-import fs from 'fs';
+import {
+  ensureStorageDirectories,
+  privateEvidenceUploadsPath,
+  publicUploadsPath,
+} from '../config/storage';
 
-const projectRoot = path.resolve(__dirname, '..', '..');
-const uploadsPath = path.join(projectRoot, 'uploads');
-export const privateEvidenceUploadsPath = path.join(projectRoot, 'private_uploads', 'transfer-evidence');
-
-// Crear directorio si no existe
-if (!fs.existsSync(uploadsPath)) {
-  fs.mkdirSync(uploadsPath, { recursive: true });
-}
-if (!fs.existsSync(privateEvidenceUploadsPath)) {
-  fs.mkdirSync(privateEvidenceUploadsPath, { recursive: true });
-}
+ensureStorageDirectories();
 
 // Tipos de archivo permitidos
 const ALLOWED_TYPES = {
@@ -24,6 +18,13 @@ const ALLOWED_TYPES = {
 };
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MULTIPART_LIMITS = {
+  fileSize: MAX_FILE_SIZE,
+  files: 1,
+  fields: 2,
+  parts: 3,
+  fieldNameSize: 100,
+};
 
 // Filtro de archivos
 const fileFilter = (req: any, file: any, cb: any) => {
@@ -37,7 +38,7 @@ const fileFilter = (req: any, file: any, cb: any) => {
 // Configuración de almacenamiento
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, uploadsPath);
+    cb(null, publicUploadsPath);
   },
   filename: function (req, file, cb) {
     // Generar nombre único con hash
@@ -60,10 +61,7 @@ const evidenceStorage = multer.diskStorage({
 export const uploadSecure = multer({
   storage,
   fileFilter,
-  limits: {
-    fileSize: MAX_FILE_SIZE,
-    files: 1
-  }
+  limits: MULTIPART_LIMITS,
 });
 
 export const uploadEvidenceSecure = multer({
@@ -72,7 +70,7 @@ export const uploadEvidenceSecure = multer({
     if (["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) cb(null, true);
     else cb(new Error("El comprobante debe ser una imagen JPG, PNG o WebP"));
   },
-  limits: { fileSize: MAX_FILE_SIZE, files: 1 },
+  limits: MULTIPART_LIMITS,
 });
 
 // Middleware para manejar errores de multer

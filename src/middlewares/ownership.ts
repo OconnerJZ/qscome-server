@@ -11,9 +11,10 @@ import { BusinessOwners } from "../entities/BusinessOwners";
 import { Orders } from "../entities/Orders";
 import { Menus } from "../entities/Menus";
 import { Payments } from "../entities/Payments";
-import { BusinessPermission, getBusinessMembership } from "../security/businessAccess";
+import { BusinessPermission, getBusinessMembership, hasScopedBusinessPermission } from "../security/businessAccess";
 import { hasDirectPaymentAccess } from "../security/paymentAccess";
 import { getActiveSharedOrderParticipant } from "../security/sharedOrderAccess";
+import { hasOrderReadAccess } from "../security/orderAccess";
 
 export const isAdmin = (user: any): boolean => user?.role === "admin";
 
@@ -47,7 +48,7 @@ const authorizeBusinessPermission = async (
     return next();
   }
   const access = await getBusinessMembership(Number(req.user?.userId), businessId);
-  if (!access || !access.permissions.includes(permission)) {
+  if (!access || !hasScopedBusinessPermission(access, businessId, permission)) {
     return res.status(403).json({ success: false, message: "No tienes permiso para realizar esta acción" });
   }
   req.businessAccess = { businessId, role: access.role, permissions: access.permissions };
@@ -161,8 +162,6 @@ export const requireOrderBusinessOwnership =
   (param = "id") =>
   async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      if (isAdmin(req.user)) return next();
-
       const orderId = parseId(req.params[param]);
       if (!orderId) {
         return res
@@ -248,13 +247,22 @@ export const requireOrderAccess =
       }
 
       const uid = req.user?.userId;
-      if (order.userId === uid) return next();
-      if (uid && order.sharedSessionId && await getActiveSharedOrderParticipant(order.sharedSessionId, uid)) {
-        return next();
-      }
-      if (order.businessId && (await ownsBusiness(uid, order.businessId))) {
-        return next();
-      }
+      if (hasOrderReadAccess({
+        requesterUserId: uid,
+        globalRole: req.user?.role,
+        orderUserId: order.userId,
+      })) return next();
+
+      const activeSharedParticipant = Boolean(uid && order.sharedSessionId
+        && await getActiveSharedOrderParticipant(order.sharedSessionId, uid));
+      if (hasOrderReadAccess({ requesterUserId: uid, activeSharedParticipant })) return next();
+
+      const businessMember = Boolean(order.businessId
+        && await ownsBusiness(uid, order.businessId));
+      if (hasOrderReadAccess({
+        requesterUserId: uid,
+        businessMember,
+      })) return next();
 
       return res
         .status(403)

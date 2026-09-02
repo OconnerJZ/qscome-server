@@ -1,9 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import fs from "node:fs/promises";
 import { TransferPaymentService } from "../services/TransferPaymentService";
-import { hasValidImageSignature } from "../security/imageSignature";
 import path from "node:path";
-import { privateEvidenceUploadsPath } from "../middlewares/uploadImproved";
+import { privateEvidenceUploadsPath } from "../config/storage";
 
 export class TransferPaymentController {
   private readonly service = new TransferPaymentService();
@@ -16,13 +15,6 @@ export class TransferPaymentController {
   submitEvidence = async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.file) return res.status(400).json({ success: false, message: "Selecciona una imagen del comprobante" });
-      const handle = await fs.open(req.file.path, "r");
-      const header = Buffer.alloc(12);
-      try { await handle.read(header, 0, header.length, 0); } finally { await handle.close(); }
-      if (!hasValidImageSignature(header, req.file.mimetype)) {
-        await fs.unlink(req.file.path).catch(() => undefined);
-        return res.status(400).json({ success: false, message: "El archivo no contiene una imagen válida" });
-      }
       const data = await this.service.submitEvidence(Number(req.params.id), Number((req as any).user?.userId), {
         storageKey: req.file.filename,
         originalName: req.file.originalname,

@@ -32,3 +32,17 @@ test("mantiene ventanas independientes por usuario", () => {
   assert.equal(nextCalls, 2);
 });
 
+test("permite aislar límites mediante una clave específica", () => {
+  const limiter = createRateLimiter({
+    limit: 1,
+    windowMs: 60_000,
+    keyGenerator: (request) => String(request.body.email).trim().toLowerCase(),
+  });
+  const response = { setHeader: () => undefined, status: () => response, json: () => response } as any;
+  let nextCalls = 0;
+
+  limiter({ body: { email: "one@example.com" }, ip: "same" } as any, response, () => { nextCalls += 1; });
+  limiter({ body: { email: "two@example.com" }, ip: "same" } as any, response, () => { nextCalls += 1; });
+
+  assert.equal(nextCalls, 2);
+});

@@ -12,6 +12,7 @@ package-lock.json
 dist/
 build/
 uploads/
+private_uploads/
 
 # Logs
 npm-debug.log*

@@ -9,6 +9,7 @@ import { TransferPaymentController } from "../controllers/TransferPaymentControl
 import { uploadEvidenceSecure, handleMulterError } from "../middlewares/uploadImproved";
 import { reviewTransferPaymentValidation } from "../validators/transferPaymentValidators";
 import { createRateLimiter } from "../middlewares/rateLimit";
+import { validateUploadedImage } from "../middlewares/imageValidation";
 
 const router = Router();
 const orderController = new OrderController();
@@ -27,7 +28,7 @@ router.post("/", authenticate, createOrderValidation, validateRequest, orderCont
 router.put("/:id/items", authenticate, requireOrderCustomerOwnership("id"), orderController.updatePendingOrder);
 router.patch("/:id/status", authenticate, requireOrderStatusAccess("id"), orderController.updateStatus);
 router.patch("/:id/items/:detailId/kitchen-status", authenticate, requireOrderBusinessPermission("kitchen.update", "id"), orderController.updateKitchenItemStatus);
-router.post("/:id/transfer-payment/evidence", authenticate, requireOrderCustomerOwnership("id"), evidenceUploadLimiter, uploadEvidenceSecure.single("file"), handleMulterError, transferPaymentController.submitEvidence);
+router.post("/:id/transfer-payment/evidence", authenticate, requireOrderCustomerOwnership("id"), evidenceUploadLimiter, uploadEvidenceSecure.single("file"), handleMulterError, validateUploadedImage, transferPaymentController.submitEvidence);
 router.patch("/:id/transfer-payment/review", authenticate, requireOrderBusinessPermission("payments.review", "id"), reviewTransferPaymentValidation, validateRequest, transferPaymentController.review);
 
 export default router;

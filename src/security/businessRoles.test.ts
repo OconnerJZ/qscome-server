@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hasBusinessPermission, normalizeBusinessRole, permissionsForRole } from "./businessRoles";
+import { hasBusinessPermission, hasScopedBusinessPermission, normalizeBusinessRole, permissionsForRole } from "./businessRoles";
 
 test("normaliza roles heredados sin ampliar permisos", () => {
   assert.equal(normalizeBusinessRole("owner"), "primary_owner");
@@ -22,3 +22,10 @@ test("cocina y caja reciben permisos operativos distintos", () => {
   assert.deepEqual(permissionsForRole("cashier"), ["orders.read", "orders.accept", "payments.review"]);
 });
 
+test("un permiso de empleado sólo aplica al negocio resuelto", () => {
+  const access = { businessId: 10, permissions: permissionsForRole("kitchen") };
+
+  assert.equal(hasScopedBusinessPermission(access, 10, "kitchen.update"), true);
+  assert.equal(hasScopedBusinessPermission(access, 11, "kitchen.update"), false);
+  assert.equal(hasScopedBusinessPermission(access, 10, "payments.review"), false);
+});

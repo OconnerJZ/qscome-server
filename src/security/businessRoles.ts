@@ -45,3 +45,12 @@ export const permissionsForRole = (role?: string | null): readonly BusinessPermi
 export const hasBusinessPermission = (role: string | null | undefined, permission: BusinessPermission) =>
   permissionsForRole(role).includes(permission);
 
+export const hasScopedBusinessPermission = (
+  access: { businessId: number; permissions: readonly BusinessPermission[] } | null | undefined,
+  requestedBusinessId: number,
+  permission: BusinessPermission,
+) => Boolean(
+  access
+  && Number(access.businessId) === Number(requestedBusinessId)
+  && access.permissions.includes(permission),
+);

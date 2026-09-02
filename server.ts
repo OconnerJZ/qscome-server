@@ -2,7 +2,6 @@
 import "reflect-metadata";
 import express from "express";
 import http from "node:http";
-import path from "node:path";
 import bodyParser from "body-parser";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -20,6 +19,7 @@ import statsRoutes from "./src/routes/statsRoutes";
 import { initializeSocket } from "./src/utils/socket";
 import { corsOrigin } from "./src/utils/cors";
 import sharedOrderRoutes from "./src/routes/sharedOrderRoutes";
+import { ensureStorageDirectories, publicUploadsPath } from "./src/config/storage";
 
 dotenv.config({ debug: false });
 
@@ -37,11 +37,11 @@ app.use(
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-const projectRoot = path.resolve(__dirname, ".");
-const uploadsPath = path.join(projectRoot, "uploads");
+ensureStorageDirectories();
 
-// Servir carpeta uploads
-app.use("/uploads", express.static(uploadsPath));
+// Sólo las imágenes públicas se sirven de forma estática. Los comprobantes
+// permanecen fuera de esta ruta y requieren autorización en su endpoint.
+app.use("/uploads", express.static(publicUploadsPath));
 
 // Health check
 app.get("/", (req, res) => {

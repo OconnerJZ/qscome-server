@@ -1,6 +1,7 @@
 FROM node:22
 
 WORKDIR /app
+ENV STORAGE_ROOT=/app
 
 # Instalar netcat (para wait-for-db.sh)
 RUN apt-get update && apt-get install -y netcat-openbsd curl && rm -rf /var/lib/apt/lists/*
@@ -26,10 +27,12 @@ RUN ls -la dist/ && test -f dist/server.js || (echo "Error: dist/server.js no fu
 # Eliminar devDependencies para producción (reduce tamaño)
 RUN npm prune --production
 
-# Crear carpeta para uploads con permisos correctos
-RUN mkdir -p /app/uploads && \
+# Crear las rutas persistentes con permisos correctos
+RUN mkdir -p /app/uploads /app/private_uploads/transfer-evidence && \
     adduser --system --group appuser && \
     chown -R appuser:appuser /app
+
+VOLUME ["/app/uploads", "/app/private_uploads"]
 
 # Copiar script de espera
 COPY wait-for-db.sh /app/wait-for-db.sh

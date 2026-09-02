@@ -10,5 +10,5 @@ export const getBusinessMembership = async (userId: number, businessId: number) 
   });
   if (!membership) return null;
   const role = normalizeBusinessRole(membership.roleInBusiness);
-  return { membership, role, permissions: permissionsForRole(role) };
+  return { businessId, membership, role, permissions: permissionsForRole(role) };
 };
