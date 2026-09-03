@@ -25,10 +25,14 @@ pipeline {
         stage('✅ Quality Gate') {
             steps {
                 sh '''
-                    npm ci
-                    npm run quality
-                    npm audit --omit=dev --audit-level=high
-                '''
+            docker run --rm \
+                -u "$(id -u):$(id -g)" \
+                -e npm_config_cache=/tmp/.npm \
+                -v "$WORKSPACE:/app" \
+                -w /app \
+                node:22 \
+                sh -c 'npm ci && npm run quality && npm audit --omit=dev --audit-level=high'
+        '''
             }
         }
 
