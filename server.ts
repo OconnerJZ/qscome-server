@@ -21,8 +21,10 @@ import { corsOrigin } from "./src/utils/cors";
 import sharedOrderRoutes from "./src/routes/sharedOrderRoutes";
 import { ensureStorageDirectories, publicUploadsPath } from "./src/config/storage";
 import { HealthService } from "./src/services/HealthService";
+import { validateProductionEnvironment } from "./src/config/environment";
 
 dotenv.config({ debug: false });
+validateProductionEnvironment();
 
 const app = express();
 const httpServer = http.createServer(app);
