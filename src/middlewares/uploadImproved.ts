@@ -1,17 +1,13 @@
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
-import fs from 'fs';
+import {
+  ensureStorageDirectories,
+  privateEvidenceUploadsPath,
+  publicUploadsPath,
+} from '../config/storage';
 
-// Mantener la misma carpeta física en desarrollo y producción.
-// __dirname cambia al compilar a dist/, process.cwd() no si el servidor se
-// ejecuta desde la raíz del proyecto (npm run dev / npm start).
-const uploadsPath = path.resolve(process.cwd(), 'uploads');
-
-// Crear directorio si no existe
-if (!fs.existsSync(uploadsPath)) {
-  fs.mkdirSync(uploadsPath, { recursive: true });
-}
+ensureStorageDirectories();
 
 // Tipos de archivo permitidos
 const ALLOWED_TYPES = {
@@ -22,6 +18,13 @@ const ALLOWED_TYPES = {
 };
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MULTIPART_LIMITS = {
+  fileSize: MAX_FILE_SIZE,
+  files: 1,
+  fields: 2,
+  parts: 3,
+  fieldNameSize: 100,
+};
 
 // Filtro de archivos
 const fileFilter = (req: any, file: any, cb: any) => {
@@ -35,7 +38,7 @@ const fileFilter = (req: any, file: any, cb: any) => {
 // Configuración de almacenamiento
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, uploadsPath);
+    cb(null, publicUploadsPath);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = crypto.randomBytes(16).toString('hex');
@@ -45,13 +48,28 @@ const storage = multer.diskStorage({
   }
 });
 
+const evidenceStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, privateEvidenceUploadsPath),
+  filename: (_req, file, cb) => {
+    const ext = ALLOWED_TYPES[file.mimetype as keyof typeof ALLOWED_TYPES];
+    cb(null, `${Date.now()}-${crypto.randomBytes(24).toString('hex')}${ext}`);
+  },
+});
+
+// Configuración de multer
 export const uploadSecure = multer({
   storage,
   fileFilter,
-  limits: {
-    fileSize: MAX_FILE_SIZE,
-    files: 1
-  }
+  limits: MULTIPART_LIMITS,
+});
+
+export const uploadEvidenceSecure = multer({
+  storage: evidenceStorage,
+  fileFilter: (_req, file, cb) => {
+    if (["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) cb(null, true);
+    else cb(new Error("El comprobante debe ser una imagen JPG, PNG o WebP"));
+  },
+  limits: MULTIPART_LIMITS,
 });
 
 export const handleMulterError = (err: any, req: any, res: any, next: any) => {

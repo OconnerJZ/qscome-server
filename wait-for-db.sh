@@ -5,7 +5,6 @@ set -e
 
 host="$1"
 shift
-cmd="$@"
 
 echo "Esperando a que MySQL esté listo en $host..."
 
@@ -15,4 +14,4 @@ until nc -z "$host" 3306; do
 done
 
 >&2 echo "MySQL está listo - ejecutando comando"
-exec $cmd
+exec "$@"

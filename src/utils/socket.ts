@@ -1,13 +1,18 @@
 // src/utils/socket.ts
 import { Server } from 'socket.io';
 import { Server as HTTPServer } from 'node:http';
+import { corsOrigin } from './cors';
+import { getBusinessMembership } from '../security/businessAccess';
+import { AuthIdentityService } from '../services/AuthIdentityService';
+import { getActiveSharedOrderParticipant } from '../security/sharedOrderAccess';
 
 let io: Server;
+const identityService = new AuthIdentityService();
 
 export const initializeSocket = (httpServer: HTTPServer) => {
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CORS_ORIGIN || "*",
+      origin: corsOrigin,
       credentials: true,
       methods: ["GET", "POST"]
     },
@@ -15,19 +20,75 @@ export const initializeSocket = (httpServer: HTTPServer) => {
     pingInterval: 25000
   });
 
-  io.on('connection', (socket) => {
+  io.use(async (socket, next) => {
+    try {
+      const rawToken = socket.handshake.auth?.token;
+      const token = typeof rawToken === 'string' ? rawToken.replace(/^Bearer\s+/i, '') : '';
+      if (!token) return next(new Error('AUTH_REQUIRED'));
+
+      const identity = await identityService.resolve(token);
+      if (!identity) return next(new Error('AUTH_USER_NOT_FOUND'));
+      socket.data.user = identity;
+      return next();
+    } catch {
+      return next(new Error('AUTH_INVALID'));
+    }
+  });
+
+  io.on('connection', async (socket) => {
+    const authenticatedUser = socket.data.user as { userId: number; role: string };
+    await socket.join(`user:${authenticatedUser.userId}`);
     console.log(`✅ Cliente conectado: ${socket.id}`);
 
-    // Unir a sala de negocio (para owners)
-    socket.on('join:business', (businessId: string) => {
-      socket.join(`business:${businessId}`);
-      console.log(`👤 Socket ${socket.id} joined business:${businessId}`);
+    socket.on('join:business', async (rawBusinessId: string | number, acknowledge?: (result: any) => void) => {
+      try {
+        const businessId = Number(rawBusinessId);
+        if (!Number.isInteger(businessId) || businessId < 1) {
+          return acknowledge?.({ success: false, error: 'BUSINESS_ID_INVALID' });
+        }
+        const isAdmin = authenticatedUser.role === 'admin';
+        const access = isAdmin ? true : Boolean(await getBusinessMembership(authenticatedUser.userId, businessId));
+        if (!access) return acknowledge?.({ success: false, error: 'BUSINESS_ACCESS_DENIED' });
+
+        await socket.join(`business:${businessId}`);
+        acknowledge?.({ success: true, businessId });
+        console.log(`👤 Socket ${socket.id} joined business:${businessId}`);
+      } catch {
+        acknowledge?.({ success: false, error: 'BUSINESS_JOIN_FAILED' });
+      }
     });
 
-    // Unir a sala de usuario (para clientes)
-    socket.on('join:user', (userId: string) => {
-      socket.join(`user:${userId}`);
-      console.log(`👤 Socket ${socket.id} joined user:${userId}`);
+    socket.on('leave:business', async (rawBusinessId: string | number, acknowledge?: (result: any) => void) => {
+      const businessId = Number(rawBusinessId);
+      if (!Number.isInteger(businessId) || businessId < 1) {
+        return acknowledge?.({ success: false, error: 'BUSINESS_ID_INVALID' });
+      }
+      await socket.leave(`business:${businessId}`);
+      acknowledge?.({ success: true, businessId });
+    });
+
+    socket.on('join:shared-order', async (rawSessionId: string, acknowledge?: (result: any) => void) => {
+      try {
+        const sessionId = String(rawSessionId || '').trim();
+        if (!/^[0-9a-f-]{36}$/i.test(sessionId)) {
+          return acknowledge?.({ success: false, error: 'SHARED_ORDER_ID_INVALID' });
+        }
+        const participant = await getActiveSharedOrderParticipant(sessionId, authenticatedUser.userId);
+        if (!participant) return acknowledge?.({ success: false, error: 'SHARED_ORDER_ACCESS_DENIED' });
+        await socket.join(`shared-order:${sessionId}`);
+        acknowledge?.({ success: true, sessionId });
+      } catch {
+        acknowledge?.({ success: false, error: 'SHARED_ORDER_JOIN_FAILED' });
+      }
+    });
+
+    socket.on('leave:shared-order', async (rawSessionId: string, acknowledge?: (result: any) => void) => {
+      const sessionId = String(rawSessionId || '').trim();
+      if (!/^[0-9a-f-]{36}$/i.test(sessionId)) {
+        return acknowledge?.({ success: false, error: 'SHARED_ORDER_ID_INVALID' });
+      }
+      await socket.leave(`shared-order:${sessionId}`);
+      acknowledge?.({ success: true, sessionId });
     });
 
     socket.on('disconnect', () => {
@@ -39,20 +100,65 @@ export const initializeSocket = (httpServer: HTTPServer) => {
 };
 
 export const getIO = (): Server => {
-  if (!io) {
-    throw new Error('Socket.IO no inicializado');
-  }
+  if (!io) throw new Error('Socket.IO no inicializado');
   return io;
 };
 
-// Emitir nueva orden a un negocio
 export const emitNewOrder = (businessId: number, orderData: any) => {
   io.to(`business:${businessId}`).emit('order:new', orderData);
   console.log(`📨 Nueva orden emitida a business:${businessId}`);
 };
 
-// Emitir actualización de estado de orden
-export const emitOrderStatusUpdate = (userId: number, orderData: any) => {
-  io.to(`user:${userId}`).emit('order:status_update', orderData);
-  console.log(`📨 Estado de orden actualizado para user:${userId}`);
+const normalizeUserIds = (userIds: number | Array<number | null | undefined> | null | undefined) =>
+  [...new Set((Array.isArray(userIds) ? userIds : [userIds]).filter((id): id is number => Number.isInteger(Number(id))).map(Number))];
+
+export const emitOrderStatusUpdate = (userIds: number | number[], orderData: any) => {
+  normalizeUserIds(userIds).forEach((userId) => io.to(`user:${userId}`).emit('order:status_update', orderData));
+  console.log(`📨 Estado de orden actualizado para ${normalizeUserIds(userIds).length} usuario(s)`);
+};
+
+export const emitOrderUpdated = (businessId: number, userId: number | null | undefined, orderData: any) => {
+  io.to(`business:${businessId}`).emit('order:updated', orderData);
+  if (userId) io.to(`user:${userId}`).emit('order:updated', orderData);
+  console.log(`📝 Orden actualizada order:${orderData?.id} business:${businessId}`);
+};
+
+export const emitKitchenItemUpdate = (businessId: number, userId: number | Array<number | null | undefined> | null | undefined, payload: any) => {
+  io.to(`business:${businessId}`).emit('order:kitchen_item_update', payload);
+  normalizeUserIds(userId).forEach((id) => io.to(`user:${id}`).emit('order:kitchen_item_update', payload));
+  console.log(`🍳 Item de cocina actualizado order:${payload?.orderId} detail:${payload?.detailId}`);
+};
+
+export const emitTransferPaymentUpdated = (businessId: number, userId: number, payload: any) => {
+  io.to(`business:${businessId}`).emit("order:transfer_payment_updated", payload);
+  io.to(`user:${userId}`).emit("order:transfer_payment_updated", payload);
+};
+
+export const emitSharedOrderUpdated = (sessionId: string, payload: any) => {
+  if (!io) return;
+  io.to(`shared-order:${sessionId}`).emit('shared-order:updated', payload);
+};
+
+export const emitBusinessAccessChanged = async (
+  userId: number,
+  businessId: number,
+  access: { role: string; permissions: readonly string[] } | null,
+) => {
+  if (!io) return;
+  try {
+    const userRoom = `user:${userId}`;
+    const businessRoom = `business:${businessId}`;
+    if (!access) {
+      await io.in(userRoom).socketsLeave(businessRoom);
+    }
+    io.to(userRoom).emit("business:access_changed", {
+      businessId,
+      revoked: !access,
+      role: access?.role || null,
+      permissions: access?.permissions || [],
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(`No se pudo emitir cambio de acceso para user:${userId} business:${businessId}`, error);
+  }
 };

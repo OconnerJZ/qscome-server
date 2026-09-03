@@ -11,8 +11,11 @@ import { Orders } from "./Orders";
 import { Menus } from "./Menus";
 import { OrderDetailOptions } from "./OrderDetailOptions";
 
+export type KitchenItemStatus = "pending" | "preparing" | "ready";
+
 @Index("order_id", ["orderId"], {})
 @Index("menu_id", ["menuId"], {})
+@Index("idx_order_details_product_period", ["menuId", "createdAt"], {})
 @Entity("order_details", { schema: "qscome" })
 export class OrderDetails {
   @PrimaryGeneratedColumn({ type: "int", name: "order_detail_id" })
@@ -46,6 +49,13 @@ export class OrderDetails {
   })
   subtotal!: string | null;
 
+  @Column("enum", {
+    name: "kitchen_status",
+    enum: ["pending", "preparing", "ready"],
+    default: () => "'pending'",
+  })
+  kitchenStatus!: KitchenItemStatus;
+
   @Column("datetime", {
     name: "created_at",
     nullable: true,
@@ -63,6 +73,9 @@ export class OrderDetails {
   @Column("text", { name: "notes", nullable: true })
   notes!: string | null;
 
+  @Column("varchar", { name: "shared_participant_label", nullable: true, length: 40 })
+  sharedParticipantLabel!: string | null;
+
   @ManyToOne(() => Orders, (orders) => orders.orderDetails, {
     onDelete: "RESTRICT",
     onUpdate: "RESTRICT",
@@ -79,7 +92,7 @@ export class OrderDetails {
 
   @OneToMany(
     () => OrderDetailOptions,
-    (orderDetailOptions) => orderDetailOptions.orderDetail
+    (orderDetailOptions) => orderDetailOptions.orderDetail,
   )
   orderDetailOptions!: OrderDetailOptions[];
 }

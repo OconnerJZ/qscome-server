@@ -5,13 +5,18 @@
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
+    "test:unit": "node --test -r reflect-metadata -r ts-node/register src/config/*.test.ts src/dtos/*.test.ts src/security/*.test.ts src/middlewares/*.test.ts src/services/*.test.ts src/services/stats/*.test.ts",
+    "quality": "npm run build && npm run test:unit",
     "dev": "nodemon --exec ts-node server.ts",
     "start": "node dist/server.js",
     "start:dev": "ts-node server.ts",
     "typeorm": "typeorm-ts-node-commonjs",
-    "migration:generate": "typeorm-ts-node-commonjs migration:generate",
-    "migration:run": "typeorm-ts-node-commonjs migration:run",
-    "migration:revert": "typeorm-ts-node-commonjs migration:revert"
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/utils/db.ts",
+    "migration:show": "typeorm-ts-node-commonjs migration:show -d src/utils/db.ts",
+    "migration:run": "typeorm-ts-node-commonjs migration:run -d src/utils/db.ts",
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/utils/db.ts",
+    "migration:show:prod": "typeorm migration:show -d dist/src/utils/db.js",
+    "migration:run:prod": "typeorm migration:run -d dist/src/utils/db.js"
   },
   "keywords": [
     "food",
@@ -23,21 +28,21 @@
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^6.0.0",
-    "body-parser": "^2.2.1",
+    "body-parser": "^2.3.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
-    "express": "^5.1.0",
+    "express": "^5.2.1",
     "express-validator": "^7.3.1",
     "google-auth-library": "^10.5.0",
     "jsonwebtoken": "^9.0.3",
-    "multer": "^2.0.2",
-    "mysql2": "^3.15.3",
+    "multer": "^2.3.0",
+    "mysql2": "^3.24.3",
     "nodemon": "^3.1.11",
     "reflect-metadata": "^0.2.2",
-    "socket.io": "^4.8.1",
-    "typeorm": "^0.3.27"
+    "socket.io": "^4.8.3",
+    "typeorm": "^0.3.31"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",

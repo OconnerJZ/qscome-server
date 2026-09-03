@@ -4,7 +4,9 @@ import { Users } from "../entities/Users";
 import { UserRoles } from "../entities/UserRoles";
 import { OAuth2Client } from "google-auth-library";
 import * as bcrypt from "bcrypt";
-import * as jwt from "jsonwebtoken";
+import { signAuthToken } from "../utils/authToken";
+import { normalizeBusinessRole, permissionsForRole } from "../security/businessAccess";
+import { getPublicRegistrationRole } from "../security/publicRegistration";
 
 export class AuthController {
   private readonly userRepo = AppDataSource.getRepository(Users);
@@ -13,17 +15,54 @@ export class AuthController {
 
   async register(req: Request, res: Response) {
     try {
-      const { user_name, email, password, phone, role, isBusiness } = req.body;
+      const { user_name, email, password, phone, isBusiness } = req.body;
+
+      // Verificar si el usuario ya existe
       const existingUser = await this.userRepo.findOne({ where: { email } });
-      if (existingUser) return res.status(400).json({ success: false, message: "El email ya está registrado" });
-      const auxRole = isBusiness ? "owner" : role;
-      const userRole = await this.roleRepo.findOne({ where: { roleName: auxRole || "customer" } });
-      if (!userRole) return res.status(400).json({ success: false, message: "Rol inválido" });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: "El email ya está registrado",
+        });
+      }
+
+      const registrationRole = getPublicRegistrationRole(isBusiness);
+      // El cliente nunca decide su rol global desde el registro público.
+      const userRole = await this.roleRepo.findOne({
+        where: { roleName: registrationRole },
+      });
+
+      if (!userRole) {
+        return res.status(400).json({
+          success: false,
+          message: "Rol inválido",
+        });
+      }
+
+      // Hashear contraseña
       const passwordHash = await bcrypt.hash(password, 10);
       const user = this.userRepo.create({ userName: user_name, email, passwordHash, phone, roleId: userRole.roleId, authProvider: "local" });
       await this.userRepo.save(user);
-      const token = jwt.sign({ userId: user.userId, email: user.email, role: userRole.roleName }, process.env.JWT_SECRET || "secret_key", { expiresIn: process.env.JWT_EXPIRES_IN || "7d" } as jwt.SignOptions);
-      return res.status(201).json({ success: true, message: "Usuario registrado exitosamente", data: { user: { id: user.userId, name: user.userName, email: user.email, phone: user.phone, role: userRole.roleName }, token } });
+
+      // Generar token
+      const token = signAuthToken(
+        { userId: user.userId, email: user.email, role: userRole.roleName },
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: "Usuario registrado exitosamente",
+        data: {
+          user: {
+            id: user.userId,
+            name: user.userName,
+            email: user.email,
+            phone: user.phone,
+            role: userRole.roleName,
+          },
+          token,
+        },
+      });
     } catch (error: any) {
       console.error("Error en register:", error);
       return res.status(500).json({ success: false, message: "Error al registrar usuario", error: error.message });
@@ -33,12 +72,57 @@ export class AuthController {
   async login(req: Request, res: Response) {
     try {
       const { email, password } = req.body;
-      const user = await this.userRepo.findOne({ where: { email }, relations: ["role"] });
-      if (!user) return res.status(401).json({ success: false, message: "Credenciales inválidas" });
-      const isValidPassword = await bcrypt.compare(password, user.passwordHash || "");
-      if (!isValidPassword) return res.status(401).json({ success: false, message: "Credenciales inválidas" });
-      const token = jwt.sign({ userId: user.userId, email: user.email, role: user.role?.roleName }, process.env.JWT_SECRET || "secret_key", { expiresIn: process.env.JWT_EXPIRES_IN || "7d" } as jwt.SignOptions);
-      return res.json({ success: true, message: "Login exitoso", data: { user: { id: user.userId, name: user.userName, email: user.email, phone: user.phone, avatar: user.avatarUrl, role: user.role?.roleName, provider: user.authProvider }, token } });
+
+      // Buscar usuario con rol
+      const user = await this.userRepo.findOne({
+        where: { email },
+        relations: ["role"],
+      });
+
+      if (user === null) {
+        return res.status(401).json({
+          success: false,
+          message: "Credenciales inválidas",
+        });
+      }
+
+      // Verificar contraseña
+      const isValidPassword = await bcrypt.compare(
+        password,
+        user.passwordHash || ""
+      );
+      if (!isValidPassword) {
+        return res.status(401).json({
+          success: false,
+          message: "Credenciales inválidas",
+        });
+      }
+
+      // Generar token
+      const token = signAuthToken(
+        {
+          userId: user.userId,
+          email: user.email,
+          role: user.role?.roleName,
+        },
+      );
+
+      return res.json({
+        success: true,
+        message: "Login exitoso",
+        data: {
+          user: {
+            id: user.userId,
+            name: user.userName,
+            email: user.email,
+            phone: user.phone,
+            avatar: user.avatarUrl,
+            role: user.role?.roleName,
+            provider: user.authProvider,
+          },
+          token,
+        },
+      });
     } catch (error: any) {
       console.error("Error en login:", error);
       return res.status(500).json({ success: false, message: "Error al iniciar sesión", error: error.message });
@@ -59,15 +143,53 @@ export class AuthController {
       const picture = payload.picture;
       let user = await this.userRepo.findOne({ where: { email }, relations: ["role"] });
       if (!user) {
-        const auxRole = isBusiness ? "owner" : "customer";
-        const userRole = await this.roleRepo.findOne({ where: { roleName: auxRole } });
-        if (!userRole) return res.status(400).json({ success: false, message: "Rol inválido" });
-        user = this.userRepo.create({ userName: name, email, roleId: userRole.roleId, authProvider: "google", authProviderId: googleId, avatarUrl: picture });
+        const registrationRole = getPublicRegistrationRole(isBusiness);
+        const userRole = await this.roleRepo.findOne({
+          where: { roleName: registrationRole },
+        });
+        if (!userRole) {
+          return res.status(400).json({
+            success: false,
+            message: "Rol inválido",
+          });
+        }
+        user = this.userRepo.create({
+          userName: name,
+          email,
+          roleId: userRole.roleId,
+          authProvider: "google",
+          authProviderId: googleId,
+          avatarUrl: picture,
+        });
+
         await this.userRepo.save(user);
         user.role = userRole;
       }
-      const token = jwt.sign({ userId: user.userId, email: user.email, role: user.role?.roleName || "customer" }, process.env.JWT_SECRET || "secret_key", { expiresIn: process.env.JWT_EXPIRES_IN || "7d" } as jwt.SignOptions);
-      return res.json({ success: true, message: "Login exitoso", data: { user: { id: user.userId, name: user.userName, email: user.email, avatar: user.avatarUrl, role: user.role?.roleName || "customer", provider: user.authProvider }, token } });
+
+      // Generar token
+      const token = signAuthToken(
+        {
+          userId: user.userId,
+          email: user.email,
+          role: user.role?.roleName || "customer",
+        },
+      );
+
+      return res.json({
+        success: true,
+        message: "Login exitoso",
+        data: {
+          user: {
+            id: user.userId,
+            name: user.userName,
+            email: user.email,
+            avatar: user.avatarUrl,
+            role: user.role?.roleName || "customer",
+            provider: user.authProvider,
+          },
+          token,
+        },
+      });
     } catch (error: any) {
       console.error("Error en Google Auth:", error);
       if (error.message?.includes("Token")) return res.status(401).json({ success: false, message: "Token de Google inválido o expirado" });
@@ -82,16 +204,20 @@ export class AuthController {
   async getMe(req: Request, res: Response) {
     try {
       const userId = (req as any).user.userId;
-      const user = await this.userRepo.findOne({ where: { userId }, relations: ["role"] });
+      let user = await this.userRepo.findOne({ where: { userId }, relations: ["role"] });
       if (!user) return res.status(404).json({ success: false, message: "Usuario no encontrado" });
 
-      // Regeneramos el JWT con el rol persistido actual. Esto es importante cuando
-      // un customer crea su primer negocio y pasa a owner durante una sesión viva.
-      const token = jwt.sign(
-        { userId: user.userId, email: user.email, role: user.role?.roleName || "customer" },
-        process.env.JWT_SECRET || "secret_key",
-        { expiresIn: process.env.JWT_EXPIRES_IN || "7d" } as jwt.SignOptions,
-      );
+      user = await this.userRepo.findOne({
+        where: { userId },
+        relations: ["role", "businessOwners", "businessOwners.business"],
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "Usuario no encontrado",
+        });
+      }
 
       return res.json({
         success: true,
@@ -103,7 +229,12 @@ export class AuthController {
           avatar: user.avatarUrl,
           role: user.role?.roleName,
           provider: user.authProvider,
-          token,
+          businesses: (user.businessOwners || []).map((membership) => ({
+            id: membership.businessId,
+            name: membership.business?.businessName,
+            membershipRole: normalizeBusinessRole(membership.roleInBusiness),
+            permissions: permissionsForRole(membership.roleInBusiness),
+          })),
         },
       });
     } catch (error: any) {

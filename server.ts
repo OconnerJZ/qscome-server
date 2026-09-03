@@ -2,7 +2,6 @@
 import "reflect-metadata";
 import express from "express";
 import http from "node:http";
-import path from "node:path";
 import bodyParser from "body-parser";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -18,41 +17,41 @@ import uploadRoutes from "./src/routes/uploadRoutes";
 import catalogRoutes from "./src/routes/catalogRoutes";
 import statsRoutes from "./src/routes/statsRoutes";
 import { initializeSocket } from "./src/utils/socket";
+import { corsOrigin } from "./src/utils/cors";
+import sharedOrderRoutes from "./src/routes/sharedOrderRoutes";
+import { ensureStorageDirectories, publicUploadsPath } from "./src/config/storage";
+import { HealthService } from "./src/services/HealthService";
+import { validateProductionEnvironment } from "./src/config/environment";
+import reviewRoutes from "./src/routes/reviewRoutes";
 
 dotenv.config({ debug: false });
+validateProductionEnvironment();
 
 const app = express();
 const httpServer = http.createServer(app);
+const healthService = new HealthService();
+const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS || "1", 10);
+if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 5) {
+  throw new Error("TRUST_PROXY_HOPS debe ser un entero entre 0 y 5");
+}
+if (trustProxyHops > 0) app.set("trust proxy", trustProxyHops);
 initializeSocket(httpServer);
 
 // Middlewares globales
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "*",
+    origin: corsOrigin,
     credentials: true,
   })
 );
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// IMPORTANTE: usar process.cwd() mantiene la misma carpeta tanto con ts-node
-// como al ejecutar node dist/server.js. Con __dirname el build terminaba
-// apuntando a dist/uploads y dejaba de encontrar imágenes históricas.
-const uploadsPath = path.resolve(process.cwd(), "uploads");
-const uploadsStatic = express.static(uploadsPath, {
-  fallthrough: true,
-  maxAge: process.env.NODE_ENV === "production" ? "1d" : 0,
-});
+ensureStorageDirectories();
 
-// Ruta canónica de archivos.
-app.use("/uploads", uploadsStatic);
-
-// Compatibilidad con URLs antiguas que pudieron guardarse como /api/uploads/...
-// Debe declararse ANTES de las rutas /api para que no caiga en el 404 de API.
-app.use("/api/uploads", express.static(uploadsPath, {
-  fallthrough: true,
-  maxAge: process.env.NODE_ENV === "production" ? "1d" : 0,
-}));
+// Sólo las imágenes públicas se sirven de forma estática. Los comprobantes
+// permanecen fuera de esta ruta y requieren autorización en su endpoint.
+app.use("/uploads", express.static(publicUploadsPath));
 
 // Health check
 app.get("/", (req, res) => {
@@ -64,26 +63,13 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", async (req, res) => {
-  try {
-    await Promise.race([
-      AppDataSource.query("SELECT 1"),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("timeout")), 3000)
-      ),
-    ]);
-
-    res.json({
-      status: "OK",
-      database: "healthy",
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    res.status(503).json({
-      status: "ERROR",
-      database: "unhealthy",
-      error: error,
-    });
-  }
+  const health = await healthService.check();
+  res.status(health.healthy ? 200 : 503).json({
+    status: health.healthy ? "OK" : "ERROR",
+    version: process.env.APP_VERSION || "development",
+    services: health.services,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // API Routes
@@ -92,10 +78,12 @@ app.use("/api/users", userRoutes);
 app.use("/api/business", businessRoutes);
 app.use("/api/menus", menuRoutes);
 app.use("/api/orders", orderRoutes);
-app.use("/api/payments", paymentRoutes);
+app.use("/api/shared-orders", sharedOrderRoutes);
+app.use("/api/payments", paymentRoutes); // RUTA CORREGIDA
 app.use("/api/upload", uploadRoutes);
 app.use("/api/catalogs", catalogRoutes);
-app.use("/api/stats", statsRoutes);
+app.use("/api/stats", statsRoutes); // NUEVO
+app.use("/api/reviews", reviewRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);
@@ -116,7 +104,7 @@ AppDataSource.initialize()
     httpServer.listen(PORT, () => {
       console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
       console.log(`🖼️ Archivos estáticos en http://localhost:${PORT}/uploads`);
-      console.log(`📁 Carpeta uploads: ${uploadsPath}`);
+      //console.log(`📁 Carpeta uploads: ${uploadsPath}`);
       console.log(`🔌 Socket.IO inicializado`);
       console.log(`🌍 Entorno: ${process.env.NODE_ENV || "development"}`);
       console.log("\n📡 Endpoints disponibles:");

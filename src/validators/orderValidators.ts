@@ -6,6 +6,10 @@ export const createOrderValidation = [
     .optional()
     .isIn(["pickup", "delivery"])
     .withMessage("El tipo de orden debe ser pickup o delivery"),
+  body("paymentMethod")
+    .optional()
+    .isIn(["cash", "card", "wallet", "transfer"])
+    .withMessage("Método de pago inválido"),
   body("deliveryAddress")
     .if(body("orderType").equals("delivery"))
     .notEmpty()

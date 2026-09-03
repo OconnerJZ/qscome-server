@@ -33,6 +33,9 @@ export class Business {
   @Column("varchar", { name: "email", nullable: true, length: 255 })
   email!: string | null;
 
+  @Column("text", { name: "description", nullable: true })
+  description!: string | null;
+
   @Column("varchar", { name: "logo_url", nullable: true, length: 255 })
   logoUrl!: string | null;
 
