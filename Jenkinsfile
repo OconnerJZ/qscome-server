@@ -57,17 +57,16 @@ pipeline {
         stage('✅ Quality Gate') {
             steps {
                 sh '''
-                    docker run --rm \
-                        -u "$(id -u):$(id -g)" \
-                        -e HOME=/tmp \
-                        -e npm_config_cache=/tmp/.npm \
-                        -v "$WORKSPACE:/app" \
-                        -v /app/node_modules \
-                        -v /app/dist \
-                        -w /app \
-                        node:22 \
-                        sh -c 'npm ci && npm run quality && npm audit --omit=dev --audit-level=high'
-                '''
+            docker run --rm \
+                -e HOME=/tmp \
+                -e npm_config_cache=/tmp/.npm \
+                -v "$WORKSPACE:/app:ro" \
+                -v /app/node_modules \
+                -v /app/dist \
+                -w /app \
+                node:22 \
+                sh -c 'npm ci && npm run quality && npm audit --omit=dev --audit-level=high'
+        '''
             }
         }
 
