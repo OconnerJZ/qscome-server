@@ -60,12 +60,16 @@ pipeline {
             docker run --rm \
                 -e HOME=/tmp \
                 -e npm_config_cache=/tmp/.npm \
-                -v "$WORKSPACE:/app:ro" \
-                -v /app/node_modules \
-                -v /app/dist \
-                -w /app \
+                -v "$WORKSPACE:/workspace:ro" \
+                -w /tmp \
                 node:22 \
-                sh -c 'npm ci && npm run quality && npm audit --omit=dev --audit-level=high'
+                sh -ec '
+                    cp -a /workspace/. /tmp/app
+                    cd /tmp/app
+                    npm ci
+                    npm run quality
+                    npm audit --omit=dev --audit-level=high
+                '
         '''
             }
         }
