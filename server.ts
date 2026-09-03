@@ -22,6 +22,7 @@ import sharedOrderRoutes from "./src/routes/sharedOrderRoutes";
 import { ensureStorageDirectories, publicUploadsPath } from "./src/config/storage";
 import { HealthService } from "./src/services/HealthService";
 import { validateProductionEnvironment } from "./src/config/environment";
+import reviewRoutes from "./src/routes/reviewRoutes";
 
 dotenv.config({ debug: false });
 validateProductionEnvironment();
@@ -82,6 +83,7 @@ app.use("/api/payments", paymentRoutes); // RUTA CORREGIDA
 app.use("/api/upload", uploadRoutes);
 app.use("/api/catalogs", catalogRoutes);
 app.use("/api/stats", statsRoutes); // NUEVO
+app.use("/api/reviews", reviewRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);
