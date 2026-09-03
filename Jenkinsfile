@@ -71,10 +71,12 @@ pipeline {
         stage('🏗️ Build Image') {
             steps {
                 sh '''
-                    cd "$PROJECT_DIR"
-                    $DOCKER_COMPOSE build --no-cache --build-arg APP_VERSION="$GIT_COMMIT_SHORT" backend
-                    test -n "$($DOCKER_COMPOSE images -q backend)"
-                '''
+            cd "$PROJECT_DIR"
+            $DOCKER_COMPOSE build \
+                --no-cache \
+                --build-arg APP_VERSION="$GIT_COMMIT_SHORT" \
+                backend
+        '''
             }
         }
 
