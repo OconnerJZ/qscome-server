@@ -44,10 +44,17 @@ export class StatsQueryService {
 
   salesTrend(businessId: number, window: DateWindow) {
     return AppDataSource.query(`
-      SELECT DATE_FORMAT(o.created_at, '%Y-%m-%d') date,
-        COUNT(*) orders, ROUND(SUM(o.total), 2) revenue, ROUND(AVG(o.total), 2) average_ticket
-      FROM orders o WHERE o.business_id = ? AND o.status = 'completed' AND o.created_at BETWEEN ? AND ?
-      GROUP BY DATE(o.created_at) ORDER BY DATE(o.created_at)
+      SELECT
+        DATE(o.created_at) AS date,
+        COUNT(*) AS orders,
+        ROUND(SUM(o.total), 2) AS revenue,
+        ROUND(AVG(o.total), 2) AS average_ticket
+      FROM orders o
+      WHERE o.business_id = ?
+        AND o.status = 'completed'
+        AND o.created_at BETWEEN ? AND ?
+      GROUP BY date
+      ORDER BY date
     `, [businessId, window.start, window.end]);
   }
 
