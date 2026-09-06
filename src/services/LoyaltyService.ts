@@ -141,6 +141,72 @@ export class LoyaltyService {
     return result;
   }
 
+  async redeemForOrder(order: Orders, subtotal: number, manager: EntityManager) {
+    if (!order.userId || !order.businessId) throw new HttpError(400, "La orden no puede usar una recompensa");
+    if (!(await this.hasManagementEntitlement(order.businessId))) throw new HttpError(409, "El programa de lealtad no está disponible para este negocio");
+
+    const program = await manager.getRepository(LoyaltyProgram).findOne({ where: { businessId: order.businessId } });
+    if (!program?.isActive) throw new HttpError(409, "El programa de lealtad está pausado");
+
+    const account = await manager.getRepository(LoyaltyAccount).createQueryBuilder("account")
+      .setLock("pessimistic_write")
+      .where("account.business_id = :businessId AND account.user_id = :userId", { businessId: order.businessId, userId: order.userId })
+      .getOne();
+    if (!account || Number(account.availableRewards || 0) < 1) throw new HttpError(409, "No tienes una recompensa disponible");
+
+    const percent = Number(program.rewardPercent);
+    const discount = Number((subtotal * (percent / 100)).toFixed(2));
+    const finalTotal = Number(Math.max(0, subtotal - discount).toFixed(2));
+
+    account.availableRewards = Number(account.availableRewards) - 1;
+    await manager.getRepository(LoyaltyAccount).save(account);
+
+    order.loyaltyRewardApplied = true;
+    order.loyaltyRewardPercent = percent;
+    order.loyaltyDiscountAmount = discount.toFixed(2);
+    order.loyaltySubtotalBeforeDiscount = subtotal.toFixed(2);
+    order.total = finalTotal.toFixed(2);
+    await manager.getRepository(Orders).save(order);
+
+    await manager.getRepository(LoyaltyEvent).save(manager.getRepository(LoyaltyEvent).create({
+      loyaltyAccountId: account.loyaltyAccountId,
+      orderId: order.orderId,
+      eventType: "reward_redeemed",
+      stampDelta: 0,
+      rewardDelta: -1,
+      metadataJson: JSON.stringify({ rewardPercent: percent, subtotal, discount, finalTotal }),
+    }));
+
+    return { rewardPercent: percent, subtotal, discount, finalTotal, availableRewards: account.availableRewards };
+  }
+
+  async restoreRewardForCancelledOrder(order: Orders, manager: EntityManager) {
+    if (!order.loyaltyRewardApplied) return null;
+    const events = manager.getRepository(LoyaltyEvent);
+    const redeemed = await events.findOne({ where: { orderId: order.orderId, eventType: "reward_redeemed" } });
+    if (!redeemed) return null;
+    const alreadyRestored = await events.findOne({ where: { orderId: order.orderId, eventType: "reward_restored" } });
+    if (alreadyRestored) return null;
+
+    const account = await manager.getRepository(LoyaltyAccount).createQueryBuilder("account")
+      .setLock("pessimistic_write")
+      .where("account.loyalty_account_id = :accountId", { accountId: redeemed.loyaltyAccountId })
+      .getOne();
+    if (!account) throw new HttpError(409, "No fue posible restaurar la recompensa de la orden");
+
+    account.availableRewards = Number(account.availableRewards || 0) + 1;
+    await manager.getRepository(LoyaltyAccount).save(account);
+    await events.save(events.create({
+      loyaltyAccountId: account.loyaltyAccountId,
+      orderId: order.orderId,
+      eventType: "reward_restored",
+      stampDelta: 0,
+      rewardDelta: 1,
+      metadataJson: JSON.stringify({ reason: "order_cancelled", restoredAt: new Date().toISOString() }),
+    }));
+    return { restored: true, availableRewards: account.availableRewards };
+  }
+
   async creditOrderById(orderId: number) {
     if (!Number.isInteger(orderId) || orderId <= 0) throw new HttpError(400, "Orden inválida");
     return AppDataSource.transaction(async (manager) => {
@@ -201,7 +267,7 @@ export class LoyaltyService {
     const existingEvent = await eventRepo.findOne({ where: { orderId: order.orderId, eventType: "order_completed" } });
     if (existingEvent) return null;
 
-    const orderTotal = Number(order.total || 0);
+    const orderTotal = Number(order.loyaltySubtotalBeforeDiscount || order.total || 0);
     const eligible = Boolean(program.isActive && entitled && orderTotal >= Number(program.minOrderAmount || 0));
     if (!eligible) {
       const reason = !program.isActive ? "program_paused" : !entitled ? "plan_paused" : "below_minimum";
