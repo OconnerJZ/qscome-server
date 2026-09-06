@@ -64,7 +64,7 @@ export class LoyaltyService {
 
     const entitled = await this.hasManagementEntitlement(businessId);
     const effectivelyActive = Boolean(program.isActive && entitled);
-    if (effectivelyActive) await this.reconcileCustomerOrders(userId, businessId);
+    if (effectivelyActive) await this.reconcileCustomerOrders(userId, businessId, true);
     const account = await this.accounts.findOne({ where: { businessId, userId } });
     return {
       businessId,
@@ -96,7 +96,7 @@ export class LoyaltyService {
       const businessId = Number(row.business_id);
       const entitled = await this.hasManagementEntitlement(businessId);
       entitlementByBusiness.set(businessId, entitled);
-      if (entitled) await this.reconcileCustomerOrders(userId, businessId);
+      if (entitled) await this.reconcileCustomerOrders(userId, businessId, true);
     }
 
     const rows = await AppDataSource.query(
@@ -145,10 +145,10 @@ export class LoyaltyService {
     });
   }
 
-  async reconcileCustomerOrders(userId: number, businessId: number) {
+  async reconcileCustomerOrders(userId: number, businessId: number, entitlementAlreadyChecked = false) {
     this.assertUserId(userId);
     this.assertBusinessId(businessId);
-    if (!(await this.hasManagementEntitlement(businessId))) return;
+    if (!entitlementAlreadyChecked && !(await this.hasManagementEntitlement(businessId))) return;
     const rows = await AppDataSource.query(
       `SELECT o.order_id FROM orders o
        LEFT JOIN loyalty_events e ON e.order_id = o.order_id AND e.event_type = 'order_completed'
