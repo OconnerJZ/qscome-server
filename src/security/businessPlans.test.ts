@@ -31,7 +31,7 @@ test("mantiene los cuatro niveles comerciales sin convertir core en paywall", ()
   }
 });
 
-test("activa Reputation Insights y Loyalty Management desde Nivel 1 sin habilitar roadmap futuro", () => {
+test("activa capacidades comerciales sólo desde su nivel mínimo", () => {
   const free = getBusinessPlanDefinition("free");
   const level1 = getBusinessPlanDefinition("level_1");
   const level2 = getBusinessPlanDefinition("level_2");
@@ -42,14 +42,22 @@ test("activa Reputation Insights y Loyalty Management desde Nivel 1 sin habilita
     assert.equal(level1.features.find((item) => item.key === key)?.included, true);
     assert.equal(level1.features.find((item) => item.key === key)?.status, "available");
   }
+
   assert.equal(level1.features.find((item) => item.key === "customer.intelligence")?.included, false);
   assert.equal(level2.features.find((item) => item.key === "customer.intelligence")?.included, true);
-  assert.equal(level2.features.find((item) => item.key === "customer.intelligence")?.status, "coming_soon");
+  assert.equal(level2.features.find((item) => item.key === "customer.intelligence")?.status, "available");
+
+  for (const key of ["analytics.advanced", "customer.segments", "exports", "marketing.advanced"]) {
+    const feature = level2.features.find((item) => item.key === key);
+    assert.equal(feature?.included, true, `${key} debe pertenecer a Nivel 2+`);
+    assert.equal(feature?.status, "coming_soon", `${key} no debe anunciarse como disponible todavía`);
+  }
+
   assert.equal(level2.features.find((item) => item.key === "automations")?.included, false);
   assert.equal(level3.features.find((item) => item.key === "automations")?.included, true);
   assert.equal(level3.features.find((item) => item.key === "automations")?.status, "coming_soon");
 
-  const allowedAvailablePaid = new Set(["reputation.insights", "loyalty.management"]);
+  const allowedAvailablePaid = new Set(["reputation.insights", "loyalty.management", "customer.intelligence"]);
   for (const plan of [free, level1, level2, level3]) {
     const unexpectedAvailablePaidFeature = plan.features.find(
       (item) => item.commercialModel !== "core" && item.status === "available" && !allowedAvailablePaid.has(item.key),
