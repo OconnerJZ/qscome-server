@@ -1,11 +1,13 @@
 import { NextFunction, Request, Response } from "express";
 import { ReviewService } from "../services/ReviewService";
 import { ReviewManagementService } from "../services/ReviewManagementService";
+import { ReputationInsightsService } from "../services/ReputationInsightsService";
 
 export class ReviewController {
   constructor(
     private readonly service = new ReviewService(),
     private readonly management = new ReviewManagementService(),
+    private readonly insights = new ReputationInsightsService(),
   ) {}
 
   listByBusiness = async (
@@ -33,6 +35,21 @@ export class ReviewController {
       res.json({
         success: true,
         data: await this.management.summary(Number.parseInt(req.params.businessId, 10)),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  reputationInsights = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const requestedPeriod = req.query.period === undefined ? 90 : Number(req.query.period);
+      res.json({
+        success: true,
+        data: await this.insights.get(
+          Number.parseInt(req.params.businessId, 10),
+          requestedPeriod,
+        ),
       });
     } catch (error) {
       next(error);
