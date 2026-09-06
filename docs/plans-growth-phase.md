@@ -24,12 +24,16 @@
 - basic business analytics
 - business-scoped roles and permissions
 
-### Scale limits — configurable, numbers pending commercial approval
+### Approved scale limits
 
-- team members
-- menu items/products
-- business gallery photos
-- analytics history days
+| Limit | FREE | LEVEL 1 | LEVEL 2 | LEVEL 3 |
+|---|---:|---:|---:|---:|
+| Team members | 3 | 10 | 30 | 90 |
+| Menu items/products | 75 | 200 | 500 | 1500 |
+| Business gallery photos | 4 | 8 | 15 | 25 |
+| Analytics history days | 30 | 90 | 365 | 730 |
+
+Team usage counts active business memberships, including the primary owner, plus non-expired pending membership invitations. Ownership-transfer invitations are not commercial team-seat additions.
 
 ### Commercial value matrix
 
@@ -37,7 +41,7 @@ The typed plan catalog is the source of truth. Commercial features can be assign
 
 #### FREE — Empieza a vender
 
-All core capabilities remain available. FREE may display platform advertising and uses scale limits only after numeric values are explicitly approved.
+All core capabilities remain available. FREE may display platform advertising and uses the approved scale limits above.
 
 #### LEVEL 1 — Profesionaliza tu negocio
 
@@ -47,7 +51,7 @@ Planned value:
 - loyalty management
 - Marketing Center
 - benefits for the separate qsCome Ads product (credits/conditions), never guaranteed organic ranking
-- higher scale once numeric limits are approved
+- increased operational scale
 
 #### LEVEL 2 — Haz crecer tu negocio
 
@@ -58,7 +62,7 @@ Inherits LEVEL 1 and adds planned value:
 - customer segments
 - advanced exports
 - advanced marketing
-- higher scale/history once numeric limits are approved
+- increased scale/history
 
 #### LEVEL 3 — Optimiza y escala
 
@@ -67,7 +71,7 @@ Inherits LEVEL 2 and adds planned value:
 - automations
 - multi-location
 - advanced integrations
-- highest scale once numeric limits are approved
+- highest approved scale/history
 
 ### Advertising product — separate from subscription
 
@@ -92,7 +96,7 @@ Requirements:
 - LEVEL 2 — grow the business
 - LEVEL 3 — optimize and scale
 
-Prices and numeric limits intentionally remain undefined until numeric values are approved explicitly.
+Prices remain undefined. Numeric scale limits are approved and active independently from billing.
 
 ## Subscription domain
 
@@ -111,12 +115,22 @@ Plan changes are non-destructive.
 
 - upgrades apply immediately to the base plan and cancel an active trial to avoid ambiguous state
 - downgrades never delete or archive existing products, team members or photos
-- if a future approved hard limit is lower than current usage, existing resources remain usable
-- only new resource creation in the exceeded category is blocked while usage remains at/above the enforced limit
+- if a lower plan is below current usage, existing resources remain usable
+- only new resource creation in the exceeded category is blocked while usage remains at/above the limit
 - reducing/deleting resources can bring the business back under the limit
 - order volume, realtime traffic, customers, Shared Orders and reviews are never blocked by downgrade
 - the admin impact preview shows overages before assignment
-- no hard limit is activated while its catalog value remains `null`
+- analytics history restricts the requested date window, not order volume or report availability itself
+
+## Limit enforcement
+
+- product creation is serialized per business before counting and inserting
+- gallery-photo creation is serialized per business before counting and inserting
+- membership invitation creation is serialized per business and counts active members plus pending invitations
+- editing/removing existing resources remains allowed when usage is above a downgraded limit
+- owner plan UI shows progressive usage guidance at 80%, 90% and 100%
+- 100% blocks only new additions in that scale category
+- backend remains authoritative; frontend warnings are UX only
 
 ## Admin access
 
@@ -161,13 +175,16 @@ The existing `review_comments` table remains the canonical review store and is e
 ### B2 — Commercial matrix
 
 - [x] define feature-value matrix for FREE / LEVEL 1 / LEVEL 2 / LEVEL 3
-- [ ] approve numeric limits with explicit product decision
+- [x] approve numeric limits
+- [x] activate approved limits in the typed catalog
 - [x] define non-destructive upgrade/downgrade policy
 - [x] add non-destructive admin impact preview before changing plan
-- [ ] add race-safe enforcement after hard limits are approved
+- [x] add serialized/race-safe creation checks for products, photos and team invitations
+- [x] enforce analytics history window by effective plan
 - [x] owner UX for value comparison without aggressive upselling
+- [x] owner usage guidance at 80% / 90% / 100%
 
-No numeric limit is active by default. `null` remains the safe value until a quantity is explicitly approved. Numeric limits are the only remaining product decision required before enabling hard scale enforcement in B2.
+B2 is complete at the product/foundation level. Billing/pricing remains a separate future concern and does not affect core ordering capabilities.
 
 ### B3 — Reviews & Reputation
 
