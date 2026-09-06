@@ -40,6 +40,10 @@ export class Orders {
   @Column("enum", { name: "delivery_status", nullable: true, enum: ["unassigned", "assigned", "on_route", "delivered"], default: () => "'unassigned'" }) deliveryStatus!: "unassigned" | "assigned" | "on_route" | "delivered" | null;
   @Column("enum", { name: "status", nullable: true, enum: ["pending", "accepted", "preparing", "ready", "in_delivery", "completed", "cancelled"], default: () => "'pending'" }) status!: "pending" | "accepted" | "preparing" | "ready" | "in_delivery" | "completed" | "cancelled" | null;
   @Column("decimal", { name: "total", nullable: true, precision: 10, scale: 2, default: () => "'0.00'" }) total!: string | null;
+  @Column("tinyint", { name: "loyalty_reward_applied", width: 1, default: () => "'0'" }) loyaltyRewardApplied!: boolean;
+  @Column("int", { name: "loyalty_reward_percent", nullable: true }) loyaltyRewardPercent!: number | null;
+  @Column("decimal", { name: "loyalty_discount_amount", nullable: true, precision: 10, scale: 2 }) loyaltyDiscountAmount!: string | null;
+  @Column("decimal", { name: "loyalty_subtotal_before_discount", nullable: true, precision: 10, scale: 2 }) loyaltySubtotalBeforeDiscount!: string | null;
   @Column("enum", { name: "order_type", nullable: false, enum: ["pickup", "delivery", "on_route", "delivered"], default: () => "'pickup'" }) orderType!: "pickup" | "delivery";
   @Column("enum", { name: "payment_method", nullable: false, enum: ["cash", "card", "wallet", "transfer"], default: () => "'cash'" }) paymentMethod!: "cash" | "card" | "wallet" | "transfer";
   @Column("longtext", { name: "transfer_bank_snapshot_json", nullable: true }) transferBankSnapshotJson!: string | null;
