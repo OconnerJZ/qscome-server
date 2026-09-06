@@ -14,7 +14,7 @@ const endOfDay = (date: Date) => { const value = new Date(date); value.setHours(
 export const createStatsPeriod = (requestedDays: number, now = new Date()): StatsPeriod => {
   const parsed = Number(requestedDays || 7);
   if (!Number.isFinite(parsed)) throw new HttpError(400, "Periodo inválido");
-  const days = Math.min(Math.max(Math.trunc(parsed), 1), 365);
+  const days = Math.min(Math.max(Math.trunc(parsed), 1), 730);
   const currentEnd = endOfDay(now);
   const currentStart = startOfDay(now);
   currentStart.setDate(currentStart.getDate() - (days - 1));
