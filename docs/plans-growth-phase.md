@@ -77,6 +77,16 @@ Each business has exactly one `business_plan_subscriptions` row.
 - business suspension/lifecycle is not a subscription status.
 - `past_due` remains reserved for future billing integration.
 
+## Admin access
+
+Platform administration uses the global `user_roles.role_name = 'admin'` role. Public registration can never self-assign it.
+
+- frontend route: `/admin`
+- frontend guard: authenticated session + `user.role === 'admin'`
+- backend namespace: `/api/admin`
+- backend security: `authenticate` + `authorize('admin')`
+- frontend guards are UX only; backend authorization remains authoritative
+
 ## Delivery blocks
 
 ### B1 — Plan foundation
@@ -134,10 +144,13 @@ Each business has exactly one `business_plan_subscriptions` row.
 
 ### B7 — Minimal Admin plan controls
 
-- [ ] search business
-- [ ] inspect base/effective plan and trial
-- [ ] assign plan
-- [ ] grant/cancel trial
-- [ ] inspect plan history
+- [x] global admin route guard
+- [x] admin-only backend namespace
+- [x] search business by name, email or ID
+- [x] inspect base/effective plan and trial
+- [x] assign plan
+- [x] grant/cancel trial
+- [x] inspect plan history
+- [x] keep plan mutations protected by backend admin authorization
 
 The full Admin Control Center remains a later phase.
