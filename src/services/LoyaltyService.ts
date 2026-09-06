@@ -85,10 +85,16 @@ export class LoyaltyService {
   async listCustomerPrograms(userId: number) {
     this.assertUserId(userId);
     const eligibleBusinesses = await AppDataSource.query(
-      `SELECT DISTINCT o.business_id FROM orders o
-       INNER JOIN loyalty_programs p ON p.business_id = o.business_id AND p.is_active = 1
-       WHERE o.user_id = ? AND o.status = 'completed' AND o.business_id IS NOT NULL
-       ORDER BY o.business_id ASC LIMIT 100`,
+      `SELECT DISTINCT o.business_id
+       FROM orders o
+       INNER JOIN loyalty_programs p ON p.business_id = o.business_id
+       INNER JOIN order_status_history h ON h.order_id = o.order_id AND h.status = 'completed'
+       WHERE o.user_id = ?
+         AND o.status = 'completed'
+         AND o.business_id IS NOT NULL
+         AND h.created_at >= p.created_at
+       ORDER BY o.business_id ASC
+       LIMIT 100`,
       [userId],
     );
     const entitlementByBusiness = new Map<number, boolean>();
@@ -140,8 +146,8 @@ export class LoyaltyService {
     return AppDataSource.transaction(async (manager) => {
       const order = await manager.getRepository(Orders).findOne({ where: { orderId } });
       if (!order) throw new HttpError(404, "Orden no encontrada");
-      if (!order.businessId || !(await this.hasManagementEntitlement(order.businessId))) return null;
-      return this.creditCompletedOrder(order, manager);
+      const entitled = order.businessId ? await this.hasManagementEntitlement(order.businessId) : false;
+      return this.processCompletedOrder(order, manager, entitled);
     });
   }
 
@@ -150,22 +156,30 @@ export class LoyaltyService {
     this.assertBusinessId(businessId);
     if (!entitlementAlreadyChecked && !(await this.hasManagementEntitlement(businessId))) return;
     const rows = await AppDataSource.query(
-      `SELECT o.order_id FROM orders o
+      `SELECT DISTINCT o.order_id
+       FROM orders o
+       INNER JOIN loyalty_programs p ON p.business_id = o.business_id
+       INNER JOIN order_status_history h ON h.order_id = o.order_id AND h.status = 'completed'
        LEFT JOIN loyalty_events e ON e.order_id = o.order_id AND e.event_type = 'order_completed'
-       WHERE o.user_id = ? AND o.business_id = ? AND o.status = 'completed' AND e.order_id IS NULL
-       ORDER BY o.order_id ASC LIMIT 100`,
+       WHERE o.user_id = ?
+         AND o.business_id = ?
+         AND o.status = 'completed'
+         AND e.order_id IS NULL
+         AND h.created_at >= p.created_at
+       ORDER BY o.order_id ASC
+       LIMIT 100`,
       [userId, businessId],
     );
     for (const row of rows) await this.creditOrderById(Number(row.order_id));
   }
 
-  async creditCompletedOrder(order: Orders, manager: EntityManager) {
+  private async processCompletedOrder(order: Orders, manager: EntityManager, entitled: boolean) {
     if (order.status !== "completed" || !order.userId || !order.businessId) return null;
     const programRepo = manager.getRepository(LoyaltyProgram);
     const accountRepo = manager.getRepository(LoyaltyAccount);
     const eventRepo = manager.getRepository(LoyaltyEvent);
-    const program = await programRepo.findOne({ where: { businessId: order.businessId, isActive: true } });
-    if (!program || Number(order.total || 0) < Number(program.minOrderAmount || 0)) return null;
+    const program = await programRepo.findOne({ where: { businessId: order.businessId } });
+    if (!program) return null;
 
     let account = await accountRepo.createQueryBuilder("account")
       .setLock("pessimistic_write")
@@ -187,6 +201,21 @@ export class LoyaltyService {
     const existingEvent = await eventRepo.findOne({ where: { orderId: order.orderId, eventType: "order_completed" } });
     if (existingEvent) return null;
 
+    const orderTotal = Number(order.total || 0);
+    const eligible = Boolean(program.isActive && entitled && orderTotal >= Number(program.minOrderAmount || 0));
+    if (!eligible) {
+      const reason = !program.isActive ? "program_paused" : !entitled ? "plan_paused" : "below_minimum";
+      await eventRepo.save(eventRepo.create({
+        loyaltyAccountId: account.loyaltyAccountId,
+        orderId: order.orderId,
+        eventType: "order_completed",
+        stampDelta: 0,
+        rewardDelta: 0,
+        metadataJson: JSON.stringify({ eligible: false, reason, orderTotal }),
+      }));
+      return { stamps: account.stamps, availableRewards: account.availableRewards, earnedRewards: 0, eligible: false, reason };
+    }
+
     const totalStamps = Number(account.stamps || 0) + 1;
     const earnedRewards = Math.floor(totalStamps / program.ordersRequired);
     account.stamps = totalStamps % program.ordersRequired;
@@ -199,9 +228,9 @@ export class LoyaltyService {
       eventType: "order_completed",
       stampDelta: 1,
       rewardDelta: earnedRewards,
-      metadataJson: JSON.stringify({ orderTotal: Number(order.total || 0), ordersRequired: program.ordersRequired, rewardPercent: program.rewardPercent }),
+      metadataJson: JSON.stringify({ eligible: true, orderTotal, ordersRequired: program.ordersRequired, rewardPercent: program.rewardPercent }),
     }));
-    return { stamps: account.stamps, availableRewards: account.availableRewards, earnedRewards };
+    return { stamps: account.stamps, availableRewards: account.availableRewards, earnedRewards, eligible: true };
   }
 
   private async hasManagementEntitlement(businessId: number) {
