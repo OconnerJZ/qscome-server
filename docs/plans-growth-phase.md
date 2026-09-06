@@ -167,7 +167,7 @@ The existing `review_comments` table remains the canonical review store and is e
 - [ ] add race-safe enforcement after hard limits are approved
 - [x] owner UX for value comparison without aggressive upselling
 
-No numeric limit is active by default. `null` remains the safe value until a quantity is explicitly approved.
+No numeric limit is active by default. `null` remains the safe value until a quantity is explicitly approved. Numeric limits are the only remaining product decision required before enabling hard scale enforcement in B2.
 
 ### B3 — Reviews & Reputation
 
