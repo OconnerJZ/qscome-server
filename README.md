@@ -1,55 +1,75 @@
-# qsCome Backend
+# qscome-server
 
-API de qsCome para pedidos, operación de negocios, realtime, pagos, órdenes compartidas y administración comercial.
+API de qsCome para autenticación, negocios, menús, órdenes, pagos por
+transferencia, órdenes compartidas, reportes y comunicación realtime.
 
-## Desarrollo
+## Requisitos
+
+- Node.js 22
+- npm 11 o compatible con el `package-lock.json`
+- MySQL o MariaDB accesible
+
+## Configuración local
+
+1. Copia `.env.example` como `.env.local` o `.env`.
+2. Sustituye los valores de referencia por credenciales locales.
+3. Instala y valida el proyecto:
 
 ```bash
 npm ci
-npm run dev
-```
-
-## Calidad
-
-```bash
 npm run quality
 ```
 
-Incluye compilación TypeScript y pruebas unitarias.
+Las variables obligatorias al ejecutar con `NODE_ENV=production` son:
+
+- `DB_HOST`, `DB_USER`, `DB_PASSWORD` y `DB_NAME`;
+- `JWT_SECRET`;
+- `GOOGLE_CLIENT_ID`;
+- `CORS_ORIGIN`.
+
+El servidor se niega a arrancar en producción si alguna está ausente. Nunca se
+debe confirmar un archivo `.env` ni reutilizar los valores de ejemplo.
 
 ## Migraciones
 
 ```bash
 npm run migration:show
 npm run migration:run
-npm run migration:revert
 ```
 
-## Plans & Growth
+Dentro de la imagen compilada se utilizan:
 
-La fase activa se desarrolla en `feature/plans-growth-foundation`.
+```bash
+npm run migration:show:prod
+npm run migration:run:prod
+```
 
-Principios principales:
+TypeORM mantiene `synchronize: false`; cualquier cambio de esquema debe entrar
+mediante una migración revisada y respaldada.
 
-- FREE debe permitir operar un negocio pequeño real.
-- realtime, órdenes, kitchen y Shared Orders son capacidades core y no paywalls.
-- los planes monetizan escala, inteligencia y herramientas de crecimiento.
-- la publicidad es un producto opcional separado de la suscripción.
-- cada negocio mantiene un plan base persistente con un trial opcional superpuesto.
+## Validación del Release Candidate
 
-Consulta `docs/plans-growth-phase.md` para el roadmap y decisiones de dominio.
+```bash
+npm ci
+npm run quality
+npm audit --omit=dev --audit-level=high
+```
 
-## Administración de plataforma
+El endpoint `/health` valida base de datos, almacenamiento público y
+almacenamiento privado. Devuelve `503` cuando alguna dependencia no está sana y
+no expone detalles internos de la excepción.
 
-El acceso administrativo usa un rol global `admin` en `user_roles` y nunca puede crearse desde el registro público.
+## Despliegue y recuperación
 
-Endpoints iniciales:
+El `Jenkinsfile` ejecuta quality gate, auditoría, respaldo, build, preflight de
+migraciones, migraciones, despliegue y pruebas de salud. También comprueba que
+`/app/uploads` y `/app/private_uploads` sean volúmenes persistentes y que una
+imagen pública pueda consultarse a través del proxy.
 
-- `GET /api/admin/businesses`
-- `GET /api/admin/businesses/:id/plan`
-- `PATCH /api/admin/businesses/:id/plan`
-- `POST /api/admin/businesses/:id/trial`
-- `POST /api/admin/businesses/:id/trial/cancel`
-- `GET /api/admin/businesses/:id/plan/history`
+Antes de detener la versión activa se genera un respaldo en
+`/home/bjaramillo/qscome/backups`. Se conservan los diez respaldos más recientes,
+con dump de base de datos, archivos persistentes y sumas SHA-256.
 
-Todas las rutas administrativas requieren autenticación y `authorize("admin")`.
+El rollback automático restaura la imagen anterior de la aplicación. Las
+migraciones no se revierten automáticamente: una restauración de datos requiere
+una decisión e intervención explícitas.
