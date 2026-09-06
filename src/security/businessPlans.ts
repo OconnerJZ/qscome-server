@@ -51,30 +51,10 @@ const PLAN_RANK: Readonly<Record<BusinessPlanCode, number>> = {
 export const APPROVED_PLAN_LIMITS: Readonly<
   Record<BusinessPlanCode, Record<BusinessPlanLimitKey, number>>
 > = {
-  free: {
-    teamMembers: 3,
-    menuItems: 75,
-    businessPhotos: 4,
-    analyticsHistoryDays: 30,
-  },
-  level_1: {
-    teamMembers: 10,
-    menuItems: 200,
-    businessPhotos: 8,
-    analyticsHistoryDays: 90,
-  },
-  level_2: {
-    teamMembers: 30,
-    menuItems: 500,
-    businessPhotos: 15,
-    analyticsHistoryDays: 365,
-  },
-  level_3: {
-    teamMembers: 90,
-    menuItems: 1500,
-    businessPhotos: 25,
-    analyticsHistoryDays: 730,
-  },
+  free: { teamMembers: 3, menuItems: 75, businessPhotos: 4, analyticsHistoryDays: 30 },
+  level_1: { teamMembers: 10, menuItems: 200, businessPhotos: 8, analyticsHistoryDays: 90 },
+  level_2: { teamMembers: 30, menuItems: 500, businessPhotos: 15, analyticsHistoryDays: 365 },
+  level_3: { teamMembers: 90, menuItems: 1500, businessPhotos: 25, analyticsHistoryDays: 730 },
 };
 
 const CORE_FEATURES = [
@@ -85,6 +65,7 @@ const CORE_FEATURES = [
   ["transferEvidence", "Comprobantes de transferencia", "Evidencia y revisión de pagos por transferencia."],
   ["sharedOrders", "Órdenes compartidas", "Crear, unir y consolidar pedidos grupales."],
   ["reviews.core", "Reseñas verificadas", "Calificar compras completadas y responder reseñas."],
+  ["loyalty.participation", "Participar en programas de lealtad", "Los clientes acumulan progreso y recompensas sin suscripción de consumidor."],
   ["analytics", "Métricas básicas del negocio", "Indicadores operativos esenciales."],
   ["teamRoles", "Roles y acceso por negocio", "Permisos business-scoped para el equipo."],
   ["concurrency", "Protección contra cambios simultáneos", "Controles de consistencia para operaciones sensibles."],
@@ -113,11 +94,11 @@ const COMMERCIAL_FEATURES: readonly CommercialFeatureDefinition[] = [
   {
     key: "loyalty.management",
     label: "Gestión de lealtad",
-    description: "Configurar recompensas y reglas; participar como cliente seguirá siendo gratuito.",
+    description: "Configurar reglas de acumulación y recompensa; participar como cliente sigue siendo gratuito.",
     category: "growth",
     minimumPlan: "level_1",
     commercialModel: "plan",
-    status: "coming_soon",
+    status: "available",
   },
   {
     key: "marketing.center",
@@ -211,22 +192,11 @@ const COMMERCIAL_FEATURES: readonly CommercialFeatureDefinition[] = [
   },
 ] as const;
 
-const LIMIT_KEYS: BusinessPlanLimitKey[] = [
-  "teamMembers",
-  "menuItems",
-  "businessPhotos",
-  "analyticsHistoryDays",
-];
+const LIMIT_KEYS: BusinessPlanLimitKey[] = ["teamMembers", "menuItems", "businessPhotos", "analyticsHistoryDays"];
 
 const featuresForPlan = (code: BusinessPlanCode): BusinessPlanFeature[] => [
   ...CORE_FEATURES.map(([key, label, description]) => ({
-    key,
-    label,
-    description,
-    category: "core" as const,
-    commercialModel: "core" as const,
-    included: true,
-    status: "available" as const,
+    key, label, description, category: "core" as const, commercialModel: "core" as const, included: true, status: "available" as const,
   })),
   ...COMMERCIAL_FEATURES.map((feature) => ({
     key: feature.key,
@@ -239,13 +209,7 @@ const featuresForPlan = (code: BusinessPlanCode): BusinessPlanFeature[] => [
   })),
 ];
 
-const definition = (
-  code: BusinessPlanCode,
-  name: string,
-  description: string,
-  positioning: string,
-  adsEnabled: boolean,
-): BusinessPlanDefinition => ({
+const definition = (code: BusinessPlanCode, name: string, description: string, positioning: string, adsEnabled: boolean): BusinessPlanDefinition => ({
   code,
   name,
   description,
@@ -261,7 +225,7 @@ const definition = (
 
 const BASE_CATALOG: BusinessPlanDefinition[] = [
   definition("free", "Gratis", "Todo lo esencial para comenzar a vender y operar un negocio real; puede mostrar publicidad.", "Empieza a vender", true),
-  definition("level_1", "Nivel 1", "Profesionaliza la operación y prepara herramientas de reputación, lealtad y crecimiento.", "Profesionaliza tu negocio", false),
+  definition("level_1", "Nivel 1", "Profesionaliza la operación y activa herramientas de reputación, lealtad y crecimiento.", "Profesionaliza tu negocio", false),
   definition("level_2", "Nivel 2", "Para negocios en crecimiento que necesitan mayor escala, inteligencia comercial y marketing avanzado.", "Haz crecer tu negocio", false),
   definition("level_3", "Nivel 3", "Para optimización, automatización y necesidades de escala avanzada a medida que se incorporen.", "Optimiza y escala", false),
 ];
@@ -277,37 +241,25 @@ const configuredLimits = () => {
 
 export const getBusinessPlanCatalog = (): BusinessPlanDefinition[] => {
   const overrides = configuredLimits() as Record<string, Record<string, unknown>>;
-
   return BASE_CATALOG.map((plan) => ({
     ...plan,
     policies: { ...plan.policies },
     features: plan.features.map((feature) => ({ ...feature })),
-    limits: Object.fromEntries(
-      LIMIT_KEYS.map((key) => {
-        const raw = overrides[plan.code]?.[key];
-        if (raw === undefined) return [key, plan.limits[key]];
-        const value = raw === null ? null : Number(raw);
-        return [key, value !== null && Number.isInteger(value) && value >= 0 ? value : plan.limits[key]];
-      }),
-    ) as Record<BusinessPlanLimitKey, number | null>,
+    limits: Object.fromEntries(LIMIT_KEYS.map((key) => {
+      const raw = overrides[plan.code]?.[key];
+      if (raw === undefined) return [key, plan.limits[key]];
+      const value = raw === null ? null : Number(raw);
+      return [key, value !== null && Number.isInteger(value) && value >= 0 ? value : plan.limits[key]];
+    })) as Record<BusinessPlanLimitKey, number | null>,
   }));
 };
 
-export const getBusinessPlanDefinition = (code?: string | null) =>
-  getBusinessPlanCatalog().find((plan) => plan.code === code) || getBusinessPlanCatalog()[0];
-
-export const getBusinessPlanRank = (code?: string | null) =>
-  isBusinessPlanCode(code) ? PLAN_RANK[code] : PLAN_RANK.free;
-
-export const compareBusinessPlanCodes = (
-  current?: string | null,
-  target?: string | null,
-): "upgrade" | "downgrade" | "same" => {
+export const getBusinessPlanDefinition = (code?: string | null) => getBusinessPlanCatalog().find((plan) => plan.code === code) || getBusinessPlanCatalog()[0];
+export const getBusinessPlanRank = (code?: string | null) => isBusinessPlanCode(code) ? PLAN_RANK[code] : PLAN_RANK.free;
+export const compareBusinessPlanCodes = (current?: string | null, target?: string | null): "upgrade" | "downgrade" | "same" => {
   const difference = getBusinessPlanRank(target) - getBusinessPlanRank(current);
   if (difference > 0) return "upgrade";
   if (difference < 0) return "downgrade";
   return "same";
 };
-
-export const isBusinessPlanCode = (value: unknown): value is BusinessPlanCode =>
-  BUSINESS_PLAN_CODES.includes(value as BusinessPlanCode);
+export const isBusinessPlanCode = (value: unknown): value is BusinessPlanCode => BUSINESS_PLAN_CODES.includes(value as BusinessPlanCode);
