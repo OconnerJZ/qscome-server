@@ -186,8 +186,9 @@ Loyalty participation is customer-core/free. Program management is a Level 1+ bu
 - crossing the threshold generates an available reward and carries remaining stamps forward
 - `loyalty_accounts` stores customer progress and available rewards per business
 - `loyalty_events` is the auditable/idempotent ledger; `(order_id, event_type)` is unique so the same event cannot be applied twice while future redemption can coexist with completion accrual on the same order
-- missed completion credits self-reconcile when customer loyalty data is read
-- completing an order never fails solely because loyalty crediting has a transient issue; reconciliation can recover it later
+- every completed order occurring after the program exists is marked once in the ledger; ineligible completions receive zero deltas with a reason (`program_paused`, `plan_paused`, or `below_minimum`) so they cannot become retroactively eligible later
+- missed completion processing self-reconciles only for completions after the loyalty program was created
+- completing an order never fails solely because loyalty processing has a transient issue; reconciliation can recover it later
 - lowering the business to a plan without Loyalty Management preserves progress/rewards but pauses new earning
 - Shared Order accrual currently follows the qsCome order owner/payer (`orders.user_id`), not every participant
 - B4.1 does not yet change order totals; server-authoritative reward redemption is B4.2
@@ -264,7 +265,8 @@ Customer reliability / Trust Score is deliberately not part of B3.2. It requires
 - [x] configurable orders-required / reward-percent / minimum-order model
 - [x] add program, account and event-ledger persistence
 - [x] credit qualifying completed orders idempotently
-- [x] self-reconcile missed completion credits
+- [x] mark non-qualifying completed orders to prevent retroactive earning
+- [x] self-reconcile missed completion processing without importing pre-program history
 - [x] preserve progress/rewards and pause new earning after downgrade
 - [x] owner Loyalty configuration UI
 - [x] customer progress/rewards summary in My Orders
