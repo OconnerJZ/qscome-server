@@ -6,6 +6,7 @@ import { Menus } from "../entities/Menus";
 import { MenuOptionGroups } from "../entities/MenuOptionGroups";
 import { MenuOptionChoices } from "../entities/MenuOptionChoices";
 import { HttpError } from "../utils/httpError";
+import { BusinessPlanService } from "./BusinessPlanService";
 import {
   formatMenuCard,
   formatMenuDetail,
@@ -40,6 +41,7 @@ interface ModifierGroupInput {
 
 export class MenuService {
   private readonly menuRepo = AppDataSource.getRepository(Menus);
+  private readonly plans = new BusinessPlanService();
 
   async list() {
     const menus = await this.menuRepo.find({
@@ -82,19 +84,30 @@ export class MenuService {
   }
 
   async create(input: CreateMenuInput) {
-    const menu = this.menuRepo.create({
-      businessId: input.business_id,
-      itemName: input.item_name.trim(),
-      description: input.description?.trim() || null,
-      price: Number(input.price).toFixed(2),
-      imageUrl: input.image_url?.trim() || null,
-      category: input.category?.trim() || null,
-      isAvailable:
-        typeof input.is_available === "boolean" ? input.is_available : true,
-      isArchived: false,
+    const saved = await AppDataSource.transaction(async (manager) => {
+      // Serialize additions per business so two simultaneous requests cannot both
+      // pass the same COUNT check at the plan boundary.
+      await manager.query("SELECT business_id FROM business WHERE business_id = ? FOR UPDATE", [input.business_id]);
+      const repo = manager.getRepository(Menus);
+      const currentUsage = await repo.count({
+        where: { businessId: input.business_id, isArchived: false },
+      });
+      await this.plans.assertWithinLimit(input.business_id, "menuItems", currentUsage);
+
+      const menu = repo.create({
+        businessId: input.business_id,
+        itemName: input.item_name.trim(),
+        description: input.description?.trim() || null,
+        price: Number(input.price).toFixed(2),
+        imageUrl: input.image_url?.trim() || null,
+        category: input.category?.trim() || null,
+        isAvailable:
+          typeof input.is_available === "boolean" ? input.is_available : true,
+        isArchived: false,
+      });
+      return repo.save(menu);
     });
-    await this.menuRepo.save(menu);
-    return formatMenuMini(menu);
+    return formatMenuMini(saved);
   }
 
   async update(menuId: number, body: any) {
@@ -156,21 +169,11 @@ export class MenuService {
       const max = Math.max(0, Number(group.maxSelect || 0));
       const defaults = choices.filter((choice) => Boolean(choice.defaultSelected)).length;
 
-      if (min > choices.length) {
-        throw new HttpError(400, `${title}: el mínimo supera el número de opciones`);
-      }
-      if (max > 0 && max > choices.length) {
-        throw new HttpError(400, `${title}: el máximo supera el número de opciones`);
-      }
-      if (max > 0 && min > max) {
-        throw new HttpError(400, `${title}: el mínimo no puede superar al máximo`);
-      }
-      if (max > 0 && defaults > max) {
-        throw new HttpError(400, `${title}: hay más opciones predeterminadas que el máximo permitido`);
-      }
-      if (max === 1 && defaults > 1) {
-        throw new HttpError(400, `${title}: sólo puede existir una opción predeterminada`);
-      }
+      if (min > choices.length) throw new HttpError(400, `${title}: el mínimo supera el número de opciones`);
+      if (max > 0 && max > choices.length) throw new HttpError(400, `${title}: el máximo supera el número de opciones`);
+      if (max > 0 && min > max) throw new HttpError(400, `${title}: el mínimo no puede superar al máximo`);
+      if (max > 0 && defaults > max) throw new HttpError(400, `${title}: hay más opciones predeterminadas que el máximo permitido`);
+      if (max === 1 && defaults > 1) throw new HttpError(400, `${title}: sólo puede existir una opción predeterminada`);
     }
 
     await AppDataSource.transaction(async (manager) => {
@@ -184,9 +187,7 @@ export class MenuService {
         (group) => group.menuOptionChoices?.map((choice) => choice.choiceId) || [],
       );
       if (choiceIds.length) await choiceRepo.delete(choiceIds);
-      if (existingGroups.length) {
-        await groupRepo.delete(existingGroups.map((group) => group.groupId));
-      }
+      if (existingGroups.length) await groupRepo.delete(existingGroups.map((group) => group.groupId));
 
       for (const group of groups) {
         const savedGroup = await groupRepo.save(
@@ -214,7 +215,6 @@ export class MenuService {
     return this.getModifierGroups(menuId);
   }
 
-  // DELETE /api/menus/:id — archivo lógico; conserva referencias históricas.
   async softDelete(menuId: number) {
     const menu = await this.menuRepo.findOne({ where: { menuId } });
     if (!menu) throw new HttpError(404, "Producto no encontrado");
