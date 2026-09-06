@@ -97,7 +97,7 @@ interface CommercialFeatureDefinition {
   category: Exclude<BusinessPlanFeatureCategory, "core">;
   minimumPlan: Exclude<BusinessPlanCode, "free">;
   commercialModel: Exclude<BusinessPlanCommercialModel, "core">;
-  status: "coming_soon";
+  status: BusinessPlanFeatureStatus;
 }
 
 const COMMERCIAL_FEATURES: readonly CommercialFeatureDefinition[] = [
@@ -108,7 +108,7 @@ const COMMERCIAL_FEATURES: readonly CommercialFeatureDefinition[] = [
     category: "reputation",
     minimumPlan: "level_1",
     commercialModel: "plan",
-    status: "coming_soon",
+    status: "available",
   },
   {
     key: "loyalty.management",
