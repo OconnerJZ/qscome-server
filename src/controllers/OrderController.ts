@@ -7,6 +7,7 @@ import { OrderService } from "../services/OrderService";
 import { KitchenService } from "../services/KitchenService";
 import { PendingOrderService } from "../services/PendingOrderService";
 import { OrderAuditService } from "../services/OrderAuditService";
+import { LoyaltyService } from "../services/LoyaltyService";
 import { KitchenItemStatus } from "../entities/OrderDetails";
 
 export class OrderController {
@@ -14,6 +15,7 @@ export class OrderController {
   private readonly kitchenService = new KitchenService();
   private readonly pendingOrderService = new PendingOrderService();
   private readonly auditService = new OrderAuditService();
+  private readonly loyaltyService = new LoyaltyService();
 
   getAll = async (_req: Request, res: Response, next: NextFunction) => {
     try { res.json({ success: true, data: await this.service.list() }); } catch (error) { next(error); }
@@ -62,7 +64,9 @@ export class OrderController {
       const orderId = Number.parseInt(req.params.id, 10);
       if (req.body.status === "ready") await this.kitchenService.assertAllItemsReady(orderId);
       const data = await this.service.updateStatus(orderId, req.body.status, req.body.note, { userId: actor?.userId, role: businessRole || actor?.role });
-      res.json({ success: true, message: "Estado actualizado", data });
+      let loyalty = null;
+      if (data.status === "completed") loyalty = await this.loyaltyService.creditOrderById(orderId);
+      res.json({ success: true, message: "Estado actualizado", data: { ...data, loyalty } });
     } catch (error) { next(error); }
   };
 
