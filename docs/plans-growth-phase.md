@@ -160,11 +160,11 @@ The existing `review_comments` table remains the canonical review store and is e
 
 ### B2 — Commercial matrix
 
-- [x] define/approve feature-value matrix for FREE / LEVEL 1 / LEVEL 2 / LEVEL 3
-- [ ] approve numeric limits
+- [x] define feature-value matrix for FREE / LEVEL 1 / LEVEL 2 / LEVEL 3
+- [ ] approve numeric limits with explicit product decision
 - [x] define non-destructive upgrade/downgrade policy
 - [x] add non-destructive admin impact preview before changing plan
-- [ ] add race-safe enforcement for approved hard limits
+- [ ] add race-safe enforcement after hard limits are approved
 - [x] owner UX for value comparison without aggressive upselling
 
 No numeric limit is active by default. `null` remains the safe value until a quantity is explicitly approved.
