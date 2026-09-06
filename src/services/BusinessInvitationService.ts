@@ -62,40 +62,50 @@ export class BusinessInvitationService {
     if (!BUSINESS_ROLES.includes(input.role)) throw new HttpError(400, "Rol de negocio inválido");
     if (input.type === "membership" && !MEMBER_ROLES.includes(input.role)) throw new HttpError(400, "No puedes invitar otro propietario principal");
 
-    if (input.type === "membership") {
-      const [members, pending] = await Promise.all([
-        this.memberships.count({ where: { businessId } }),
-        this.invitations.count({ where: { businessId, status: "pending", expiresAt: MoreThan(new Date()) } }),
-      ]);
-      await this.plans.assertWithinLimit(businessId, "teamMembers", members + pending);
-    }
-
-    const [business, existingUser] = await Promise.all([
-      AppDataSource.getRepository(Business).findOne({ where: { businessId } }),
-      AppDataSource.getRepository(Users).findOne({ where: { email } }),
-    ]);
-    if (!business) throw new HttpError(404, "Negocio no encontrado");
-    if (input.type === "membership" && existingUser && await this.memberships.findOne({ where: { businessId, userId: existingUser.userId } })) {
-      throw new HttpError(409, "Este usuario ya pertenece al negocio");
-    }
-
-    await this.invitations.createQueryBuilder().update().set({ status: "cancelled" })
-      .where("business_id = :businessId AND invited_email = :email AND status = 'pending'", { businessId, email }).execute();
     const secret = createInvitationSecrets();
-    const invitation = await this.invitations.save(this.invitations.create({
-      businessId,
-      invitedEmail: email,
-      roleInBusiness: input.role,
-      invitationType: input.type,
-      status: "pending",
-      tokenHash: hashInvitationToken(secret.token),
-      codeHash: hashInvitationCode(secret.code),
-      invitedBy: actorUserId,
-      acceptedBy: null,
-      retainPreviousAsCoOwner: input.retainPreviousAsCoOwner !== false,
-      expiresAt: createInvitationExpiry(),
-      acceptedAt: null,
-    }));
+    const invitation = await AppDataSource.transaction(async (manager) => {
+      // The business row is the serialization point for team-seat allocation.
+      // This prevents simultaneous invitations from overshooting the same plan limit.
+      await manager.query("SELECT business_id FROM business WHERE business_id = ? FOR UPDATE", [businessId]);
+
+      const business = await manager.getRepository(Business).findOne({ where: { businessId } });
+      if (!business) throw new HttpError(404, "Negocio no encontrado");
+
+      const invitationRepo = manager.getRepository(BusinessInvitations);
+      const membershipRepo = manager.getRepository(BusinessOwners);
+      const existingUser = await manager.getRepository(Users).findOne({ where: { email } });
+
+      if (input.type === "membership") {
+        if (existingUser && await membershipRepo.findOne({ where: { businessId, userId: existingUser.userId } })) {
+          throw new HttpError(409, "Este usuario ya pertenece al negocio");
+        }
+
+        const [members, pending] = await Promise.all([
+          membershipRepo.count({ where: { businessId } }),
+          invitationRepo.count({ where: { businessId, status: "pending", expiresAt: MoreThan(new Date()) } }),
+        ]);
+        await this.plans.assertWithinLimit(businessId, "teamMembers", members + pending);
+      }
+
+      await invitationRepo.createQueryBuilder().update().set({ status: "cancelled" })
+        .where("business_id = :businessId AND invited_email = :email AND status = 'pending'", { businessId, email }).execute();
+
+      return invitationRepo.save(invitationRepo.create({
+        businessId,
+        invitedEmail: email,
+        roleInBusiness: input.role,
+        invitationType: input.type,
+        status: "pending",
+        tokenHash: hashInvitationToken(secret.token),
+        codeHash: hashInvitationCode(secret.code),
+        invitedBy: actorUserId,
+        acceptedBy: null,
+        retainPreviousAsCoOwner: input.retainPreviousAsCoOwner !== false,
+        expiresAt: createInvitationExpiry(),
+        acceptedAt: null,
+      }));
+    });
+
     await this.audit.record(actorUserId, input.type === "ownership_transfer" ? "OWNERSHIP_TRANSFER_INVITED" : "BUSINESS_MEMBER_INVITED", businessId, serializeInvitation(invitation));
     const frontendUrl = (process.env.FRONTEND_URL || process.env.CORS_ORIGIN?.split(",")[0] || "http://localhost:5173").replace(/\/$/, "");
     return { ...serializeInvitation(invitation), code: secret.code, invitationUrl: `${frontendUrl}/business-invitations/${secret.token}` };
