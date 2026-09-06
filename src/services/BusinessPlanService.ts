@@ -33,7 +33,7 @@ export class BusinessPlanService {
     const subscription = await this.subscriptions.findOne({ where: { businessId } });
     const basePlanCode = subscription?.basePlanCode || "free";
     const trial = this.getTrialState(subscription);
-    const effectivePlanCode = trial?.active ? trial.planCode : basePlanCode;
+    const effectivePlanCode = this.getEffectivePlanCode(subscription);
     const definition = getBusinessPlanDefinition(effectivePlanCode);
     const baseDefinition = getBusinessPlanDefinition(basePlanCode);
 
@@ -237,6 +237,7 @@ export class BusinessPlanService {
       }
 
       current.status = "active";
+      current.endsAt = null;
       current.source = "admin";
       current.assignedBy = actorUserId;
       current.trialPlanCode = input.planCode as BusinessPlanCode;
@@ -353,8 +354,15 @@ export class BusinessPlanService {
     }
   }
 
+  private isSubscriptionEntitled(subscription: BusinessPlanSubscription | null) {
+    if (!subscription) return false;
+    if (subscription.status !== "active" && subscription.status !== "trialing") return false;
+    if (subscription.endsAt && subscription.endsAt.getTime() <= Date.now()) return false;
+    return true;
+  }
+
   private getTrialState(subscription: BusinessPlanSubscription | null) {
-    if (!subscription?.trialPlanCode) return null;
+    if (!this.isSubscriptionEntitled(subscription) || !subscription?.trialPlanCode) return null;
 
     const now = Date.now();
     const startsAt = subscription.trialStartsAt;
@@ -373,6 +381,7 @@ export class BusinessPlanService {
   }
 
   private getEffectivePlanCode(subscription: BusinessPlanSubscription | null): BusinessPlanCode {
+    if (!this.isSubscriptionEntitled(subscription)) return "free";
     const trial = this.getTrialState(subscription);
     return trial?.active
       ? trial.planCode
