@@ -60,20 +60,25 @@ export class LoyaltyService {
     this.assertUserId(userId);
     this.assertBusinessId(businessId);
     const program = await this.programs.findOne({ where: { businessId } });
-    if (!program || !program.isActive) return { businessId, active: false, program: program ? this.serializeProgram(program) : null, progress: null };
-    await this.reconcileCustomerOrders(userId, businessId);
+    if (!program) return { businessId, active: false, configuredActive: false, program: null, progress: null };
+
+    const entitled = await this.hasManagementEntitlement(businessId);
+    const effectivelyActive = Boolean(program.isActive && entitled);
+    if (effectivelyActive) await this.reconcileCustomerOrders(userId, businessId);
     const account = await this.accounts.findOne({ where: { businessId, userId } });
     return {
       businessId,
-      active: true,
+      active: effectivelyActive,
+      configuredActive: Boolean(program.isActive),
+      pausedByPlan: Boolean(program.isActive && !entitled),
       program: this.serializeProgram(program),
-      progress: {
-        stamps: account?.stamps || 0,
+      progress: account ? {
+        stamps: account.stamps || 0,
         ordersRequired: program.ordersRequired,
-        remaining: Math.max(0, program.ordersRequired - (account?.stamps || 0)),
-        availableRewards: account?.availableRewards || 0,
-        lifetimeStamps: account?.lifetimeStamps || 0,
-      },
+        remaining: Math.max(0, program.ordersRequired - (account.stamps || 0)),
+        availableRewards: account.availableRewards || 0,
+        lifetimeStamps: account.lifetimeStamps || 0,
+      } : null,
     };
   }
 
@@ -86,7 +91,13 @@ export class LoyaltyService {
        ORDER BY o.business_id ASC LIMIT 100`,
       [userId],
     );
-    for (const row of eligibleBusinesses) await this.reconcileCustomerOrders(userId, Number(row.business_id));
+    const entitlementByBusiness = new Map<number, boolean>();
+    for (const row of eligibleBusinesses) {
+      const businessId = Number(row.business_id);
+      const entitled = await this.hasManagementEntitlement(businessId);
+      entitlementByBusiness.set(businessId, entitled);
+      if (entitled) await this.reconcileCustomerOrders(userId, businessId);
+    }
 
     const rows = await AppDataSource.query(
       `SELECT a.business_id, a.stamps, a.available_rewards, a.lifetime_stamps,
@@ -99,18 +110,29 @@ export class LoyaltyService {
        ORDER BY a.updated_at DESC`,
       [userId],
     );
-    return rows.map((row: any) => ({
-      businessId: Number(row.business_id),
-      businessName: row.business_name || "Negocio",
-      active: Boolean(row.is_active),
-      program: { ordersRequired: Number(row.orders_required), rewardPercent: Number(row.reward_percent), minOrderAmount: Number(row.min_order_amount || 0) },
-      progress: {
-        stamps: Number(row.stamps || 0),
-        remaining: Math.max(0, Number(row.orders_required) - Number(row.stamps || 0)),
-        availableRewards: Number(row.available_rewards || 0),
-        lifetimeStamps: Number(row.lifetime_stamps || 0),
-      },
-    }));
+    const result = [];
+    for (const row of rows) {
+      const businessId = Number(row.business_id);
+      const entitled = entitlementByBusiness.has(businessId)
+        ? entitlementByBusiness.get(businessId)!
+        : await this.hasManagementEntitlement(businessId);
+      const configuredActive = Boolean(row.is_active);
+      result.push({
+        businessId,
+        businessName: row.business_name || "Negocio",
+        active: Boolean(configuredActive && entitled),
+        configuredActive,
+        pausedByPlan: Boolean(configuredActive && !entitled),
+        program: { ordersRequired: Number(row.orders_required), rewardPercent: Number(row.reward_percent), minOrderAmount: Number(row.min_order_amount || 0) },
+        progress: {
+          stamps: Number(row.stamps || 0),
+          remaining: Math.max(0, Number(row.orders_required) - Number(row.stamps || 0)),
+          availableRewards: Number(row.available_rewards || 0),
+          lifetimeStamps: Number(row.lifetime_stamps || 0),
+        },
+      });
+    }
+    return result;
   }
 
   async creditOrderById(orderId: number) {
@@ -118,6 +140,7 @@ export class LoyaltyService {
     return AppDataSource.transaction(async (manager) => {
       const order = await manager.getRepository(Orders).findOne({ where: { orderId } });
       if (!order) throw new HttpError(404, "Orden no encontrada");
+      if (!order.businessId || !(await this.hasManagementEntitlement(order.businessId))) return null;
       return this.creditCompletedOrder(order, manager);
     });
   }
@@ -125,6 +148,7 @@ export class LoyaltyService {
   async reconcileCustomerOrders(userId: number, businessId: number) {
     this.assertUserId(userId);
     this.assertBusinessId(businessId);
+    if (!(await this.hasManagementEntitlement(businessId))) return;
     const rows = await AppDataSource.query(
       `SELECT o.order_id FROM orders o
        LEFT JOIN loyalty_events e ON e.order_id = o.order_id AND e.event_type = 'order_completed'
@@ -180,10 +204,14 @@ export class LoyaltyService {
     return { stamps: account.stamps, availableRewards: account.availableRewards, earnedRewards };
   }
 
-  private async assertManagementEntitlement(businessId: number) {
+  private async hasManagementEntitlement(businessId: number) {
     const capabilities = await this.plans.resolveCapabilities(businessId);
     const feature = capabilities.features.find((item) => item.key === "loyalty.management");
-    if (!feature?.included || feature.status !== "available") throw new HttpError(403, "La gestión de lealtad requiere Nivel 1 o superior");
+    return Boolean(feature?.included && feature.status === "available");
+  }
+
+  private async assertManagementEntitlement(businessId: number) {
+    if (!(await this.hasManagementEntitlement(businessId))) throw new HttpError(403, "La gestión de lealtad requiere Nivel 1 o superior");
   }
 
   private serializeProgram(program: LoyaltyProgram) {
