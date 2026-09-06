@@ -14,15 +14,49 @@ const review = {
   reviewDetails: [{ pros: "Servicio", cons: null }],
 } as ReviewComments;
 
-test("expone únicamente los campos públicos de una reseña", () => {
+test("expone únicamente el contrato público de una reseña", () => {
   assert.deepEqual(formatPublicReview(review), {
     id: 12,
+    userId: 8,
+    businessId: 4,
+    orderId: undefined,
     userName: "Bryant",
     avatar: "avatars/8.png",
     comment: "Excelente atención",
     createdAt: new Date("2026-09-03T12:00:00.000Z"),
     rating: 0,
+    verifiedOrder: false,
+    categoryRatings: {
+      food: null,
+      time: null,
+      presentation: null,
+      accuracy: null,
+    },
+    ownerResponse: null,
     details: [{ pros: "Servicio", cons: "" }],
+  });
+});
+
+test("marca una reseña como verificada cuando está ligada a una orden", () => {
+  const verified = {
+    ...review,
+    orderId: 77,
+    rating: 5,
+    foodRating: 5,
+    timeRating: 4,
+    presentationRating: 5,
+    accuracyRating: 5,
+  } as ReviewComments;
+
+  const formatted = formatPublicReview(verified);
+  assert.equal(formatted.verifiedOrder, true);
+  assert.equal(formatted.orderId, 77);
+  assert.equal(formatted.rating, 5);
+  assert.deepEqual(formatted.categoryRatings, {
+    food: 5,
+    time: 4,
+    presentation: 5,
+    accuracy: 5,
   });
 });
 
