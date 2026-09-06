@@ -17,6 +17,14 @@ test("sólo primary_owner administra equipo y transfiere propiedad", () => {
   }
 });
 
+test("owners y manager pueden gestionar reseñas sin ampliar permisos operativos de cocina/caja", () => {
+  assert.equal(hasBusinessPermission("primary_owner", "reviews.manage"), true);
+  assert.equal(hasBusinessPermission("co_owner", "reviews.manage"), true);
+  assert.equal(hasBusinessPermission("manager", "reviews.manage"), true);
+  assert.equal(hasBusinessPermission("kitchen", "reviews.manage"), false);
+  assert.equal(hasBusinessPermission("cashier", "reviews.manage"), false);
+});
+
 test("cocina y caja reciben permisos operativos distintos", () => {
   assert.deepEqual(permissionsForRole("kitchen"), ["orders.read", "kitchen.read", "kitchen.update"]);
   assert.deepEqual(permissionsForRole("cashier"), ["orders.read", "orders.accept", "payments.review"]);
