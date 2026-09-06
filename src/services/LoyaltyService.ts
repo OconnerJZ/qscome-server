@@ -34,15 +34,9 @@ export class LoyaltyService {
     const ordersRequired = Number(input.ordersRequired);
     const rewardPercent = Number(input.rewardPercent);
     const minOrderAmount = Number(input.minOrderAmount || 0);
-    if (!Number.isInteger(ordersRequired) || ordersRequired < 2 || ordersRequired > 20) {
-      throw new HttpError(400, "Las órdenes requeridas deben estar entre 2 y 20");
-    }
-    if (!Number.isInteger(rewardPercent) || rewardPercent < 5 || rewardPercent > 30) {
-      throw new HttpError(400, "La recompensa debe ser un descuento entero entre 5% y 30%");
-    }
-    if (!Number.isFinite(minOrderAmount) || minOrderAmount < 0 || minOrderAmount > 100000) {
-      throw new HttpError(400, "El monto mínimo de orden no es válido");
-    }
+    if (!Number.isInteger(ordersRequired) || ordersRequired < 2 || ordersRequired > 20) throw new HttpError(400, "Las órdenes requeridas deben estar entre 2 y 20");
+    if (!Number.isInteger(rewardPercent) || rewardPercent < 5 || rewardPercent > 30) throw new HttpError(400, "La recompensa debe ser un descuento entero entre 5% y 30%");
+    if (!Number.isFinite(minOrderAmount) || minOrderAmount < 0 || minOrderAmount > 100000) throw new HttpError(400, "El monto mínimo de orden no es válido");
 
     const program = await AppDataSource.transaction(async (manager) => {
       const business = await manager.getRepository(Business).createQueryBuilder("business")
@@ -66,10 +60,7 @@ export class LoyaltyService {
     this.assertUserId(userId);
     this.assertBusinessId(businessId);
     const program = await this.programs.findOne({ where: { businessId } });
-    if (!program || !program.isActive) {
-      return { businessId, active: false, program: program ? this.serializeProgram(program) : null, progress: null };
-    }
-
+    if (!program || !program.isActive) return { businessId, active: false, program: program ? this.serializeProgram(program) : null, progress: null };
     await this.reconcileCustomerOrders(userId, businessId);
     const account = await this.accounts.findOne({ where: { businessId, userId } });
     return {
@@ -89,17 +80,13 @@ export class LoyaltyService {
   async listCustomerPrograms(userId: number) {
     this.assertUserId(userId);
     const eligibleBusinesses = await AppDataSource.query(
-      `SELECT DISTINCT o.business_id
-       FROM orders o
+      `SELECT DISTINCT o.business_id FROM orders o
        INNER JOIN loyalty_programs p ON p.business_id = o.business_id AND p.is_active = 1
        WHERE o.user_id = ? AND o.status = 'completed' AND o.business_id IS NOT NULL
-       ORDER BY o.business_id ASC
-       LIMIT 100`,
+       ORDER BY o.business_id ASC LIMIT 100`,
       [userId],
     );
-    for (const row of eligibleBusinesses) {
-      await this.reconcileCustomerOrders(userId, Number(row.business_id));
-    }
+    for (const row of eligibleBusinesses) await this.reconcileCustomerOrders(userId, Number(row.business_id));
 
     const rows = await AppDataSource.query(
       `SELECT a.business_id, a.stamps, a.available_rewards, a.lifetime_stamps,
@@ -116,11 +103,7 @@ export class LoyaltyService {
       businessId: Number(row.business_id),
       businessName: row.business_name || "Negocio",
       active: Boolean(row.is_active),
-      program: {
-        ordersRequired: Number(row.orders_required),
-        rewardPercent: Number(row.reward_percent),
-        minOrderAmount: Number(row.min_order_amount || 0),
-      },
+      program: { ordersRequired: Number(row.orders_required), rewardPercent: Number(row.reward_percent), minOrderAmount: Number(row.min_order_amount || 0) },
       progress: {
         stamps: Number(row.stamps || 0),
         remaining: Math.max(0, Number(row.orders_required) - Number(row.stamps || 0)),
@@ -143,15 +126,10 @@ export class LoyaltyService {
     this.assertUserId(userId);
     this.assertBusinessId(businessId);
     const rows = await AppDataSource.query(
-      `SELECT o.order_id
-       FROM orders o
-       LEFT JOIN loyalty_events e ON e.order_id = o.order_id
-       WHERE o.user_id = ?
-         AND o.business_id = ?
-         AND o.status = 'completed'
-         AND e.order_id IS NULL
-       ORDER BY o.order_id ASC
-       LIMIT 100`,
+      `SELECT o.order_id FROM orders o
+       LEFT JOIN loyalty_events e ON e.order_id = o.order_id AND e.event_type = 'order_completed'
+       WHERE o.user_id = ? AND o.business_id = ? AND o.status = 'completed' AND e.order_id IS NULL
+       ORDER BY o.order_id ASC LIMIT 100`,
       [userId, businessId],
     );
     for (const row of rows) await this.creditOrderById(Number(row.order_id));
@@ -162,41 +140,27 @@ export class LoyaltyService {
     const programRepo = manager.getRepository(LoyaltyProgram);
     const accountRepo = manager.getRepository(LoyaltyAccount);
     const eventRepo = manager.getRepository(LoyaltyEvent);
-
     const program = await programRepo.findOne({ where: { businessId: order.businessId, isActive: true } });
-    if (!program) return null;
-    if (Number(order.total || 0) < Number(program.minOrderAmount || 0)) return null;
+    if (!program || Number(order.total || 0) < Number(program.minOrderAmount || 0)) return null;
 
     let account = await accountRepo.createQueryBuilder("account")
       .setLock("pessimistic_write")
-      .where("account.business_id = :businessId AND account.user_id = :userId", {
-        businessId: order.businessId,
-        userId: order.userId,
-      })
+      .where("account.business_id = :businessId AND account.user_id = :userId", { businessId: order.businessId, userId: order.userId })
       .getOne();
     if (!account) {
       try {
-        account = await accountRepo.save(accountRepo.create({
-          businessId: order.businessId,
-          userId: order.userId,
-          stamps: 0,
-          availableRewards: 0,
-          lifetimeStamps: 0,
-        }));
+        account = await accountRepo.save(accountRepo.create({ businessId: order.businessId, userId: order.userId, stamps: 0, availableRewards: 0, lifetimeStamps: 0 }));
       } catch (error: any) {
         if (error?.code !== "ER_DUP_ENTRY" && Number(error?.errno) !== 1062) throw error;
         account = await accountRepo.createQueryBuilder("account")
           .setLock("pessimistic_write")
-          .where("account.business_id = :businessId AND account.user_id = :userId", {
-            businessId: order.businessId,
-            userId: order.userId,
-          })
+          .where("account.business_id = :businessId AND account.user_id = :userId", { businessId: order.businessId, userId: order.userId })
           .getOne();
         if (!account) throw error;
       }
     }
 
-    const existingEvent = await eventRepo.findOne({ where: { orderId: order.orderId } });
+    const existingEvent = await eventRepo.findOne({ where: { orderId: order.orderId, eventType: "order_completed" } });
     if (existingEvent) return null;
 
     const totalStamps = Number(account.stamps || 0) + 1;
@@ -205,29 +169,21 @@ export class LoyaltyService {
     account.availableRewards = Number(account.availableRewards || 0) + earnedRewards;
     account.lifetimeStamps = Number(account.lifetimeStamps || 0) + 1;
     await accountRepo.save(account);
-
     await eventRepo.save(eventRepo.create({
       loyaltyAccountId: account.loyaltyAccountId,
       orderId: order.orderId,
       eventType: "order_completed",
       stampDelta: 1,
       rewardDelta: earnedRewards,
-      metadataJson: JSON.stringify({
-        orderTotal: Number(order.total || 0),
-        ordersRequired: program.ordersRequired,
-        rewardPercent: program.rewardPercent,
-      }),
+      metadataJson: JSON.stringify({ orderTotal: Number(order.total || 0), ordersRequired: program.ordersRequired, rewardPercent: program.rewardPercent }),
     }));
-
     return { stamps: account.stamps, availableRewards: account.availableRewards, earnedRewards };
   }
 
   private async assertManagementEntitlement(businessId: number) {
     const capabilities = await this.plans.resolveCapabilities(businessId);
     const feature = capabilities.features.find((item) => item.key === "loyalty.management");
-    if (!feature?.included || feature.status !== "available") {
-      throw new HttpError(403, "La gestión de lealtad requiere Nivel 1 o superior");
-    }
+    if (!feature?.included || feature.status !== "available") throw new HttpError(403, "La gestión de lealtad requiere Nivel 1 o superior");
   }
 
   private serializeProgram(program: LoyaltyProgram) {
@@ -244,7 +200,6 @@ export class LoyaltyService {
   private assertBusinessId(businessId: number) {
     if (!Number.isInteger(businessId) || businessId <= 0) throw new HttpError(400, "Negocio inválido");
   }
-
   private assertUserId(userId: number) {
     if (!Number.isInteger(userId) || userId <= 0) throw new HttpError(401, "Usuario no autenticado");
   }
