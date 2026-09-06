@@ -17,6 +17,7 @@ const adminOnly = [authenticate, authorize("admin")] as const;
 
 router.get("/businesses", ...adminOnly, adminController.searchBusinesses);
 router.get("/businesses/:id/plan", ...adminOnly, planController.get);
+router.get("/businesses/:id/plan/impact", ...adminOnly, adminController.previewPlanImpact);
 router.patch(
   "/businesses/:id/plan",
   ...adminOnly,
