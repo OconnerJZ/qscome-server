@@ -38,6 +38,7 @@ export class AdminService {
         "subscription.trial_starts_at AS trialStartsAt",
         "subscription.trial_ends_at AS trialEndsAt",
         "subscription.status AS subscriptionStatus",
+        "subscription.ends_at AS subscriptionEndsAt",
       ])
       .orderBy("business.created_at", "DESC")
       .limit(limit);
@@ -64,8 +65,16 @@ export class AdminService {
     return rows.map((row) => {
       const trialStartsAt = row.trialStartsAt ? new Date(row.trialStartsAt) : null;
       const trialEndsAt = row.trialEndsAt ? new Date(row.trialEndsAt) : null;
+      const subscriptionEndsAt = row.subscriptionEndsAt ? new Date(row.subscriptionEndsAt) : null;
+      const subscriptionActive = (
+        !row.subscriptionStatus
+        || row.subscriptionStatus === "active"
+        || row.subscriptionStatus === "trialing"
+      ) && (!subscriptionEndsAt || subscriptionEndsAt.getTime() > now);
+      const basePlanCode = subscriptionActive ? row.basePlanCode || "free" : "free";
       const trialActive = Boolean(
-        row.trialPlanCode
+        subscriptionActive
+        && row.trialPlanCode
         && (!trialStartsAt || trialStartsAt.getTime() <= now)
         && (!trialEndsAt || trialEndsAt.getTime() > now),
       );
@@ -74,8 +83,8 @@ export class AdminService {
         id: Number(row.businessId),
         name: row.businessName || `Negocio #${row.businessId}`,
         email: row.businessEmail || null,
-        isOpen: Boolean(row.isOpen),
-        isVerified: Boolean(row.isVerified),
+        isOpen: Number(row.isOpen) === 1,
+        isVerified: Number(row.isVerified) === 1,
         createdAt: row.createdAt || null,
         owner: row.ownerUserId
           ? {
@@ -85,9 +94,9 @@ export class AdminService {
             }
           : null,
         plan: {
-          basePlanCode: row.basePlanCode || "free",
-          effectivePlanCode: trialActive ? row.trialPlanCode : row.basePlanCode || "free",
-          subscriptionStatus: row.subscriptionStatus || "active",
+          basePlanCode,
+          effectivePlanCode: trialActive ? row.trialPlanCode : basePlanCode,
+          subscriptionStatus: subscriptionActive ? row.subscriptionStatus || "active" : row.subscriptionStatus || "inactive",
           trial: row.trialPlanCode
             ? {
                 planCode: row.trialPlanCode,
