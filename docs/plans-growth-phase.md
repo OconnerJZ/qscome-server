@@ -21,6 +21,7 @@
 - transfer evidence
 - Shared Orders
 - verified customer reviews and business responses
+- customer participation in loyalty programs
 - basic business analytics
 - business-scoped roles and permissions
 
@@ -41,17 +42,17 @@ The typed plan catalog is the source of truth. Commercial features can be assign
 
 #### FREE — Empieza a vender
 
-All core capabilities remain available. FREE may display platform advertising and uses the approved scale limits above.
+All core capabilities remain available. FREE may display platform advertising and uses the approved scale limits above. Customers can participate in loyalty programs created by eligible businesses without a consumer subscription.
 
 #### LEVEL 1 — Profesionaliza tu negocio
 
 Available value:
 
 - Reputation Insights: review trends, distribution, category signals and deterministic reputation alerts
+- Loyalty Management: configure a simple recurring-order rewards program
 
 Planned value:
 
-- loyalty management
 - Marketing Center
 - benefits for the separate qsCome Ads product (credits/conditions), never guaranteed organic ranking
 - increased operational scale
@@ -122,6 +123,7 @@ Plan changes are non-destructive.
 - only new resource creation in the exceeded category is blocked while usage remains at/above the limit
 - reducing/deleting resources can bring the business back under the limit
 - order volume, realtime traffic, customers, Shared Orders and reviews are never blocked by downgrade
+- loyalty progress and already-generated rewards are preserved on downgrade; new loyalty earning pauses while the business lacks `loyalty.management`
 - the admin impact preview shows overages before assignment
 - analytics history restricts the requested date window, not order volume or report availability itself
 
@@ -173,6 +175,22 @@ Reputation Insights is a Level 1+ commercial capability layered on top of core r
 - deterministic alerts for rating drops/improvements, low-rating concentration, low response rate and weak categories
 - fewer than 5 reviews returns descriptive metrics but suppresses trend alerts to avoid over-interpreting tiny samples
 - automated sentiment/themes are intentionally not implemented yet; they require adequate review volume and a separate quality/privacy decision
+
+## Loyalty domain
+
+Loyalty participation is customer-core/free. Program management is a Level 1+ business capability.
+
+- one configurable program per business
+- current B4.1 model: one qualifying completed order adds one stamp
+- owner configures required orders (2–20), future reward discount (5–30%) and optional minimum order amount
+- crossing the threshold generates an available reward and carries remaining stamps forward
+- `loyalty_accounts` stores customer progress and available rewards per business
+- `loyalty_events` is the auditable/idempotent ledger; `(order_id, event_type)` is unique so the same event cannot be applied twice while future redemption can coexist with completion accrual on the same order
+- missed completion credits self-reconcile when customer loyalty data is read
+- completing an order never fails solely because loyalty crediting has a transient issue; reconciliation can recover it later
+- lowering the business to a plan without Loyalty Management preserves progress/rewards but pauses new earning
+- Shared Order accrual currently follows the qsCome order owner/payer (`orders.user_id`), not every participant
+- B4.1 does not yet change order totals; server-authoritative reward redemption is B4.2
 
 ## Delivery blocks
 
@@ -238,9 +256,28 @@ Customer reliability / Trust Score is deliberately not part of B3.2. It requires
 
 ### B4 — Loyalty
 
-- [ ] simple rewards model first
-- [ ] customer participation remains free
-- [ ] owner management/advanced rules become commercial capabilities
+#### B4.1 Earn — foundation complete
+
+- [x] make customer participation core/free
+- [x] activate `loyalty.management` from Level 1+
+- [x] add business-scoped `loyalty.manage` permission for owner/co-owner/manager
+- [x] configurable orders-required / reward-percent / minimum-order model
+- [x] add program, account and event-ledger persistence
+- [x] credit qualifying completed orders idempotently
+- [x] self-reconcile missed completion credits
+- [x] preserve progress/rewards and pause new earning after downgrade
+- [x] owner Loyalty configuration UI
+- [x] customer progress/rewards summary in My Orders
+
+#### B4.2 Redeem — next
+
+- [ ] server-authoritative reward eligibility during checkout
+- [ ] persist reward/discount snapshot on the order
+- [ ] consume one available reward atomically with order creation
+- [ ] calculate final discounted total on the server
+- [ ] prevent reward reuse under concurrent checkout requests
+- [ ] define cancellation/refund policy for consumed rewards
+- [ ] checkout UX to apply/remove an available reward
 
 ### B5 — Customer Intelligence
 
