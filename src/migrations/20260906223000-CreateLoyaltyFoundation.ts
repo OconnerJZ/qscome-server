@@ -49,7 +49,7 @@ export class CreateLoyaltyFoundation20260906223000 implements MigrationInterface
         metadata_json LONGTEXT NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (loyalty_event_id),
-        UNIQUE KEY uq_loyalty_event_order (order_id),
+        UNIQUE KEY uq_loyalty_event_order_type (order_id, event_type),
         KEY idx_loyalty_event_account (loyalty_account_id),
         CONSTRAINT fk_loyalty_event_account FOREIGN KEY (loyalty_account_id) REFERENCES loyalty_accounts(loyalty_account_id) ON DELETE CASCADE ON UPDATE CASCADE,
         CONSTRAINT fk_loyalty_event_order FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE ON UPDATE CASCADE
