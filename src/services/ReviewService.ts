@@ -8,11 +8,13 @@ import { HttpError } from "../utils/httpError";
 const numberOrNull = (value: number | null | undefined) =>
   value === null || value === undefined ? null : Number(value);
 
+/**
+ * Public storefront contract. Internal user/order/business ids intentionally stay
+ * out of this shape; callers only need to know whether the review came from a
+ * completed qsCome order.
+ */
 export const formatPublicReview = (review: ReviewComments) => ({
   id: review.commentId,
-  userId: review.userId,
-  businessId: review.businessId,
-  orderId: review.orderId,
   userName: review.user?.userName || "Cliente",
   avatar: review.user?.avatarUrl || "",
   comment: review.commentText || "",
