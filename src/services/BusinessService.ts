@@ -8,6 +8,7 @@ import { BusinessOwners } from "../entities/BusinessOwners";
 import { BusinessDeliverySettings } from "../entities/BusinessDeliverySettings";
 import { BusinessPaymentMethods } from "../entities/BusinessPaymentMethods";
 import { BusinessPhotos } from "../entities/BusinessPhotos";
+import { BusinessPlanSubscription } from "../entities/BusinessPlanSubscription";
 import { Users } from "../entities/Users";
 import { UserRoles } from "../entities/UserRoles";
 import { HttpError } from "../utils/httpError";
@@ -95,8 +96,20 @@ export class BusinessService {
     const { business_name, phone, email, logo_url, locale, schedule, has_delivery, food_type, id } = input;
     if (!id) throw new HttpError(400, "Usuario inválido");
     const businessId = await AppDataSource.transaction(async (manager) => {
-      const businessRepo = manager.getRepository(Business); const locationRepo = manager.getRepository(Locations); const scheduleRepo = manager.getRepository(BusinessSchedule); const bFoodTypesRepo = manager.getRepository(BusinessFoodTypes); const bDeliveryRepo = manager.getRepository(BusinessDeliverySettings); const bPaymentRepo = manager.getRepository(BusinessPaymentMethods); const bOwnerRepo = manager.getRepository(BusinessOwners); const userRepo = manager.getRepository(Users); const roleRepo = manager.getRepository(UserRoles);
+      const businessRepo = manager.getRepository(Business); const locationRepo = manager.getRepository(Locations); const scheduleRepo = manager.getRepository(BusinessSchedule); const bFoodTypesRepo = manager.getRepository(BusinessFoodTypes); const bDeliveryRepo = manager.getRepository(BusinessDeliverySettings); const bPaymentRepo = manager.getRepository(BusinessPaymentMethods); const bOwnerRepo = manager.getRepository(BusinessOwners); const planRepo = manager.getRepository(BusinessPlanSubscription); const userRepo = manager.getRepository(Users); const roleRepo = manager.getRepository(UserRoles);
       const business = businessRepo.create({ businessName: business_name, phone, email, logoUrl: logo_url, isOpen: true, hasDelivery: has_delivery }); await businessRepo.save(business);
+      await planRepo.save(planRepo.create({
+        businessId: business.businessId,
+        basePlanCode: "free",
+        status: "active",
+        source: "system",
+        assignedBy: null,
+        startsAt: new Date(),
+        endsAt: null,
+        trialPlanCode: null,
+        trialStartsAt: null,
+        trialEndsAt: null,
+      }));
       if (locale) await locationRepo.save(locationRepo.create({
         businessId: business.businessId,
         address: locale.address || null,
