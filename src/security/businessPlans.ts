@@ -130,11 +130,11 @@ const COMMERCIAL_FEATURES: readonly CommercialFeatureDefinition[] = [
   {
     key: "customer.intelligence",
     label: "Customer Intelligence",
-    description: "Nuevos vs. recurrentes, recompra, inactividad y valor agregado de clientes.",
+    description: "Nuevos vs. recurrentes, recompra, inactividad, cohortes y comportamiento agregado de órdenes compartidas.",
     category: "intelligence",
     minimumPlan: "level_2",
     commercialModel: "plan",
-    status: "coming_soon",
+    status: "available",
   },
   {
     key: "customer.segments",
