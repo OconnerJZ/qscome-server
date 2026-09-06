@@ -1,6 +1,7 @@
 import { BusinessPlanService } from "./BusinessPlanService";
 import {
   BusinessPlanLimitKey,
+  compareBusinessPlanCodes,
   getBusinessPlanDefinition,
   isBusinessPlanCode,
 } from "../security/businessPlans";
@@ -16,6 +17,7 @@ export class BusinessPlanImpactService {
 
     const current = await this.plans.get(businessId);
     const target = getBusinessPlanDefinition(targetPlanCode);
+    const direction = compareBusinessPlanCodes(current.basePlan?.code, targetPlanCode);
     const usageByLimit: Partial<Record<BusinessPlanLimitKey, number>> = {
       teamMembers:
         Number(current.usage?.teamMembers || 0)
@@ -39,6 +41,7 @@ export class BusinessPlanImpactService {
 
     return {
       businessId,
+      direction,
       current: {
         effectivePlanCode: current.plan?.code,
         basePlanCode: current.basePlan?.code,
@@ -47,15 +50,21 @@ export class BusinessPlanImpactService {
       target: {
         code: target.code,
         name: target.name,
+        positioning: target.positioning,
         policies: target.policies,
         limits,
       },
       impact: {
         hasOverages: overages.length > 0,
         overages,
-        requiresCommercialDecision: overages.length > 0,
+        requiresCommercialDecision: false,
         cancelsActiveTrial: Boolean(current.trial?.active),
         destructiveChangesApplied: false,
+        policy: {
+          preserveExistingResources: true,
+          blockOnlyNewResourcesWhenLimitIsEnforced: true,
+          automaticDeletion: false,
+        },
       },
     };
   }
