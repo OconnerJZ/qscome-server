@@ -58,10 +58,15 @@ Planned value:
 
 #### LEVEL 2 — Haz crecer tu negocio
 
-Inherits LEVEL 1 and adds planned value:
+Inherits LEVEL 1.
+
+Available value:
+
+- Customer Intelligence: aggregate new/returning cohorts, repeat behavior, inactivity and Shared Order impact
+
+Planned value:
 
 - advanced analytics
-- Customer Intelligence
 - customer segments
 - advanced exports
 - advanced marketing
@@ -195,6 +200,24 @@ Loyalty participation is customer-core/free. Program management is a Level 1+ bu
 - cancelling an order with a consumed reward restores exactly one reward and writes `reward_restored`
 - completion earning uses the pre-discount subtotal for minimum-order eligibility
 
+## Customer Intelligence domain
+
+Customer Intelligence is a Level 2+ commercial capability layered on top of core business analytics. Basic customer counts and repeat-rate KPIs remain available to every plan.
+
+- private business endpoint guarded by `reports.read` plus the `customer.intelligence` plan entitlement
+- requested periods remain constrained by the effective plan analytics-history allowance
+- new vs returning customers are calculated from completed orders
+- average ticket, order count and revenue are compared by new/returning cohort
+- observed frequency buckets show 1, 2–3, 4–7 and 8+ completed orders inside the observable history window
+- inactivity bands show 0–30, 31–60, 61–90 and 90+ days since the last completed order inside the observable history window
+- Shared Order intelligence reports share of completed orders, revenue, shared vs individual average ticket and average distinct participants per shared session
+- Shared Orders themselves remain core/free and are never restricted by these analytics
+- fewer than 5 customers or 5 completed orders suppresses deterministic opportunity signals while descriptive metrics remain visible
+- signals are deterministic and explainable; no predictive churn score or opaque customer scoring is introduced
+- responses are aggregate-only and do not expose customer names, emails, phones or internal IDs
+- frequency/inactivity wording deliberately says “observed” because plan history limits may hide older activity
+- individual customer profiles, contact exports and campaign audiences remain out of scope until the segmentation/marketing privacy model is implemented
+
 ## Delivery blocks
 
 ### B1 — Plan foundation
@@ -277,13 +300,21 @@ Loyalty participation is customer-core/free. Program management is a Level 1+ bu
 - [x] checkout UX to apply/remove an available reward
 - [x] expose loyalty snapshot in order payloads/history
 
-### B5 — Customer Intelligence
+### B5 — Customer Intelligence — foundation complete
 
-- [ ] new vs returning customers
-- [ ] repeat rate
-- [ ] average ticket by cohort
-- [ ] inactivity/churn windows
-- [ ] Shared Order analytics as intelligence, not a usage paywall
+- [x] activate `customer.intelligence` from Level 2+
+- [x] preserve basic customer KPIs as core analytics
+- [x] new vs returning customer cohorts
+- [x] repeat/frequency analysis within observable plan history
+- [x] average ticket and revenue by cohort
+- [x] inactivity bands without exposing customer identities
+- [x] Shared Order analytics as intelligence, not a usage paywall
+- [x] average distinct participants per shared session
+- [x] deterministic signals with minimum sample protection
+- [x] aggregate-only API with no customer contact details or IDs
+- [x] owner Customer Intelligence panel with Level 2 gate
+
+Customer segments, individual outreach lists and contact exports remain future capabilities and require the Marketing/segmentation privacy model rather than being smuggled into B5.
 
 ### B6 — Marketing & qsCome Ads
 
