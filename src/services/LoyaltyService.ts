@@ -115,6 +115,15 @@ export class LoyaltyService {
     }));
   }
 
+  async creditOrderById(orderId: number) {
+    if (!Number.isInteger(orderId) || orderId <= 0) throw new HttpError(400, "Orden inválida");
+    return AppDataSource.transaction(async (manager) => {
+      const order = await manager.getRepository(Orders).findOne({ where: { orderId } });
+      if (!order) throw new HttpError(404, "Orden no encontrada");
+      return this.creditCompletedOrder(order, manager);
+    });
+  }
+
   async creditCompletedOrder(order: Orders, manager: EntityManager) {
     if (order.status !== "completed" || !order.userId || !order.businessId) return null;
     const programRepo = manager.getRepository(LoyaltyProgram);
@@ -124,8 +133,6 @@ export class LoyaltyService {
     const program = await programRepo.findOne({ where: { businessId: order.businessId, isActive: true } });
     if (!program) return null;
     if (Number(order.total || 0) < Number(program.minOrderAmount || 0)) return null;
-    const existingEvent = await eventRepo.findOne({ where: { orderId: order.orderId } });
-    if (existingEvent) return null;
 
     let account = await accountRepo.createQueryBuilder("account")
       .setLock("pessimistic_write")
@@ -136,16 +143,30 @@ export class LoyaltyService {
       .getOne();
     if (!account) {
       try {
-        account = await accountRepo.save(accountRepo.create({ businessId: order.businessId, userId: order.userId, stamps: 0, availableRewards: 0, lifetimeStamps: 0 }));
+        account = await accountRepo.save(accountRepo.create({
+          businessId: order.businessId,
+          userId: order.userId,
+          stamps: 0,
+          availableRewards: 0,
+          lifetimeStamps: 0,
+        }));
       } catch (error: any) {
         if (error?.code !== "ER_DUP_ENTRY" && Number(error?.errno) !== 1062) throw error;
         account = await accountRepo.createQueryBuilder("account")
           .setLock("pessimistic_write")
-          .where("account.business_id = :businessId AND account.user_id = :userId", { businessId: order.businessId, userId: order.userId })
+          .where("account.business_id = :businessId AND account.user_id = :userId", {
+            businessId: order.businessId,
+            userId: order.userId,
+          })
           .getOne();
         if (!account) throw error;
       }
     }
+
+    // Re-check only after serializing this customer's account. This prevents a
+    // concurrent retry of the same completed order from incrementing twice.
+    const existingEvent = await eventRepo.findOne({ where: { orderId: order.orderId } });
+    if (existingEvent) return null;
 
     const totalStamps = Number(account.stamps || 0) + 1;
     const earnedRewards = Math.floor(totalStamps / program.ordersRequired);
@@ -154,23 +175,19 @@ export class LoyaltyService {
     account.lifetimeStamps = Number(account.lifetimeStamps || 0) + 1;
     await accountRepo.save(account);
 
-    try {
-      await eventRepo.save(eventRepo.create({
-        loyaltyAccountId: account.loyaltyAccountId,
-        orderId: order.orderId,
-        eventType: "order_completed",
-        stampDelta: 1,
-        rewardDelta: earnedRewards,
-        metadataJson: JSON.stringify({
-          orderTotal: Number(order.total || 0),
-          ordersRequired: program.ordersRequired,
-          rewardPercent: program.rewardPercent,
-        }),
-      }));
-    } catch (error: any) {
-      if (error?.code === "ER_DUP_ENTRY" || Number(error?.errno) === 1062) return null;
-      throw error;
-    }
+    await eventRepo.save(eventRepo.create({
+      loyaltyAccountId: account.loyaltyAccountId,
+      orderId: order.orderId,
+      eventType: "order_completed",
+      stampDelta: 1,
+      rewardDelta: earnedRewards,
+      metadataJson: JSON.stringify({
+        orderTotal: Number(order.total || 0),
+        ordersRequired: program.ordersRequired,
+        rewardPercent: program.rewardPercent,
+      }),
+    }));
+
     return { stamps: account.stamps, availableRewards: account.availableRewards, earnedRewards };
   }
 
