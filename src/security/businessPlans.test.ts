@@ -22,7 +22,7 @@ test("mantiene los cuatro niveles comerciales sin convertir core en paywall", ()
   assert.deepEqual(catalog.map((plan) => plan.code), [...BUSINESS_PLAN_CODES]);
 
   for (const plan of catalog) {
-    for (const key of ["orders.secure", "realtime", "kitchen", "sharedOrders", "reviews.core"]) {
+    for (const key of ["orders.secure", "realtime", "kitchen", "sharedOrders", "reviews.core", "loyalty.participation"]) {
       const feature = plan.features.find((item) => item.key === key);
       assert.equal(feature?.included, true, `${key} debe estar incluido en ${plan.code}`);
       assert.equal(feature?.status, "available", `${key} debe estar disponible en ${plan.code}`);
@@ -31,15 +31,17 @@ test("mantiene los cuatro niveles comerciales sin convertir core en paywall", ()
   }
 });
 
-test("activa Reputation Insights desde Nivel 1 sin habilitar roadmap futuro", () => {
+test("activa Reputation Insights y Loyalty Management desde Nivel 1 sin habilitar roadmap futuro", () => {
   const free = getBusinessPlanDefinition("free");
   const level1 = getBusinessPlanDefinition("level_1");
   const level2 = getBusinessPlanDefinition("level_2");
   const level3 = getBusinessPlanDefinition("level_3");
 
-  assert.equal(free.features.find((item) => item.key === "reputation.insights")?.included, false);
-  assert.equal(level1.features.find((item) => item.key === "reputation.insights")?.included, true);
-  assert.equal(level1.features.find((item) => item.key === "reputation.insights")?.status, "available");
+  for (const key of ["reputation.insights", "loyalty.management"]) {
+    assert.equal(free.features.find((item) => item.key === key)?.included, false);
+    assert.equal(level1.features.find((item) => item.key === key)?.included, true);
+    assert.equal(level1.features.find((item) => item.key === key)?.status, "available");
+  }
   assert.equal(level1.features.find((item) => item.key === "customer.intelligence")?.included, false);
   assert.equal(level2.features.find((item) => item.key === "customer.intelligence")?.included, true);
   assert.equal(level2.features.find((item) => item.key === "customer.intelligence")?.status, "coming_soon");
@@ -47,9 +49,10 @@ test("activa Reputation Insights desde Nivel 1 sin habilitar roadmap futuro", ()
   assert.equal(level3.features.find((item) => item.key === "automations")?.included, true);
   assert.equal(level3.features.find((item) => item.key === "automations")?.status, "coming_soon");
 
+  const allowedAvailablePaid = new Set(["reputation.insights", "loyalty.management"]);
   for (const plan of [free, level1, level2, level3]) {
     const unexpectedAvailablePaidFeature = plan.features.find(
-      (item) => item.commercialModel !== "core" && item.status === "available" && item.key !== "reputation.insights",
+      (item) => item.commercialModel !== "core" && item.status === "available" && !allowedAvailablePaid.has(item.key),
     );
     assert.equal(unexpectedAvailablePaidFeature, undefined);
   }
@@ -86,12 +89,7 @@ test("activa exactamente los límites comerciales aprobados", () => {
 
 test("los límites comerciales sólo describen escala del negocio", () => {
   const free = getBusinessPlanDefinition("free");
-  assert.deepEqual(Object.keys(free.limits).sort(), [
-    "analyticsHistoryDays",
-    "businessPhotos",
-    "menuItems",
-    "teamMembers",
-  ]);
+  assert.deepEqual(Object.keys(free.limits).sort(), ["analyticsHistoryDays", "businessPhotos", "menuItems", "teamMembers"]);
   assert.equal("sharedParticipants" in free.limits, false);
   assert.equal("activeSharedSessions" in free.limits, false);
 });
@@ -100,7 +98,6 @@ test("publicidad se expresa como policy y conserva compatibilidad temporal", () 
   const [free, ...paid] = getBusinessPlanCatalog();
   assert.equal(free.policies.adsEnabled, true);
   assert.equal(free.adsEnabled, true);
-
   for (const plan of paid) {
     assert.equal(plan.policies.adsEnabled, false);
     assert.equal(plan.adsEnabled, false);
@@ -115,7 +112,6 @@ test("acepta overrides explícitos y conserva defaults ante valores inválidos",
 
   const free = getBusinessPlanDefinition("free");
   const level1 = getBusinessPlanDefinition("level_1");
-
   assert.equal(free.limits.teamMembers, 2);
   assert.equal(free.limits.menuItems, 25);
   assert.equal(free.limits.businessPhotos, 4);
