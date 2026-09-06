@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  APPROVED_PLAN_LIMITS,
   BUSINESS_PLAN_CODES,
   compareBusinessPlanCodes,
   getBusinessPlanCatalog,
@@ -68,6 +69,19 @@ test("ordena planes para previews de upgrade y downgrade", () => {
   assert.equal(compareBusinessPlanCodes("level_2", "level_2"), "same");
 });
 
+test("activa exactamente los límites comerciales aprobados", () => {
+  assert.deepEqual(getBusinessPlanDefinition("free").limits, APPROVED_PLAN_LIMITS.free);
+  assert.deepEqual(getBusinessPlanDefinition("level_1").limits, APPROVED_PLAN_LIMITS.level_1);
+  assert.deepEqual(getBusinessPlanDefinition("level_2").limits, APPROVED_PLAN_LIMITS.level_2);
+  assert.deepEqual(getBusinessPlanDefinition("level_3").limits, APPROVED_PLAN_LIMITS.level_3);
+  assert.deepEqual(APPROVED_PLAN_LIMITS.free, {
+    teamMembers: 3,
+    menuItems: 75,
+    businessPhotos: 4,
+    analyticsHistoryDays: 30,
+  });
+});
+
 test("los límites comerciales sólo describen escala del negocio", () => {
   const free = getBusinessPlanDefinition("free");
   assert.deepEqual(Object.keys(free.limits).sort(), [
@@ -91,19 +105,19 @@ test("publicidad se expresa como policy y conserva compatibilidad temporal", () 
   }
 });
 
-test("acepta overrides explícitos sin inventar límites inválidos", () => {
+test("acepta overrides explícitos y conserva defaults ante valores inválidos", () => {
   process.env.BUSINESS_PLAN_LIMITS_JSON = JSON.stringify({
-    free: { teamMembers: 3, menuItems: 25, businessPhotos: -1 },
+    free: { teamMembers: 2, menuItems: 25, businessPhotos: -1 },
     level_1: { analyticsHistoryDays: 90.5 },
   });
 
   const free = getBusinessPlanDefinition("free");
   const level1 = getBusinessPlanDefinition("level_1");
 
-  assert.equal(free.limits.teamMembers, 3);
+  assert.equal(free.limits.teamMembers, 2);
   assert.equal(free.limits.menuItems, 25);
-  assert.equal(free.limits.businessPhotos, null);
-  assert.equal(level1.limits.analyticsHistoryDays, null);
+  assert.equal(free.limits.businessPhotos, 4);
+  assert.equal(level1.limits.analyticsHistoryDays, 90);
   assert.equal(getBusinessPlanDefinition("unknown").code, "free");
   assert.equal(isBusinessPlanCode("level_3"), true);
 });
