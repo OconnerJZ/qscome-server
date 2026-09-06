@@ -45,9 +45,12 @@ All core capabilities remain available. FREE may display platform advertising an
 
 #### LEVEL 1 — Profesionaliza tu negocio
 
+Available value:
+
+- Reputation Insights: review trends, distribution, category signals and deterministic reputation alerts
+
 Planned value:
 
-- Reputation Insights
 - loyalty management
 - Marketing Center
 - benefits for the separate qsCome Ads product (credits/conditions), never guaranteed organic ranking
@@ -156,6 +159,21 @@ The existing `review_comments` table remains the canonical review store and is e
 - historical review rows remain readable while verified-order data is introduced
 - private customer reliability feedback is deliberately a separate follow-up; it is not mixed into public ratings
 
+## Reputation Intelligence domain
+
+Reputation Insights is a Level 1+ commercial capability layered on top of core reviews. It never gates receiving, reading or responding to reviews.
+
+- private business endpoint guarded by `reviews.manage` and plan entitlement
+- periods follow the effective plan analytics-history allowance
+- average rating compared with the previous equivalent period
+- 5-to-1 star distribution and low-rating share
+- response rate and unanswered-review count
+- food/time/presentation/accuracy category averages and weakest category with minimum sample
+- daily trend points for recent review activity
+- deterministic alerts for rating drops/improvements, low-rating concentration, low response rate and weak categories
+- fewer than 5 reviews returns descriptive metrics but suppresses trend alerts to avoid over-interpreting tiny samples
+- automated sentiment/themes are intentionally not implemented yet; they require adequate review volume and a separate quality/privacy decision
+
 ## Delivery blocks
 
 ### B1 — Plan foundation
@@ -202,12 +220,21 @@ B2 is complete at the product/foundation level. Billing/pricing remains a separa
 - [x] owner review dashboard with basic aggregate reputation summary
 - [x] Reviews remain core and are not plan-gated
 
-#### B3.2 Reputation intelligence / trust — later
+#### B3.2 Reputation Intelligence — foundation complete
 
-- [ ] private customer reliability feedback for platform safety
-- [ ] define abuse/dispute safeguards before using customer reliability signals
-- [ ] Level 1+ reputation trends, alerts and deeper insights
-- [ ] sentiment/themes only after enough review volume exists
+- [x] activate `reputation.insights` from Level 1+
+- [x] private business-scoped insights endpoint
+- [x] plan-aware reputation-history periods
+- [x] current vs previous rating trend
+- [x] star distribution and low-rating share
+- [x] response-rate opportunity signal
+- [x] category averages and weakest-category signal
+- [x] deterministic warning/opportunity/positive alerts
+- [x] suppress trend alerts below 5 reviews
+- [x] owner Reputation Intelligence panel
+- [ ] automated sentiment/themes only after enough review volume exists
+
+Customer reliability / Trust Score is deliberately not part of B3.2. It requires its own abuse, dispute, appeal and privacy model before implementation.
 
 ### B4 — Loyalty
 
