@@ -1,7 +1,7 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from "typeorm";
 
 @Entity("loyalty_events", { schema: "qscome" })
-@Index("uq_loyalty_event_order", ["orderId"], { unique: true })
+@Index("uq_loyalty_event_order_type", ["orderId", "eventType"], { unique: true })
 @Index("idx_loyalty_event_account", ["loyaltyAccountId"])
 export class LoyaltyEvent {
   @PrimaryGeneratedColumn({ type: "int", name: "loyalty_event_id" }) loyaltyEventId!: number;
