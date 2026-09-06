@@ -15,6 +15,7 @@ import { HttpError } from "../utils/httpError";
 import { formatBusinessCard, formatOwnerBusinessCard, formatBusinessDetail, formatMenuItem } from "../serializers/business.serializer";
 import { normalizeBusinessRole, permissionsForRole } from "../security/businessAccess";
 import { assertUsableTransferConfig, normalizeTransferBankConfig } from "../security/transferPayment";
+import { BusinessPlanService } from "./BusinessPlanService";
 import {
   BusinessLocationDto,
   BusinessPaymentMethodDto,
@@ -54,6 +55,7 @@ export class BusinessService {
   private readonly bDeliveryRepo = AppDataSource.getRepository(BusinessDeliverySettings);
   private readonly bPaymentRepo = AppDataSource.getRepository(BusinessPaymentMethods);
   private readonly bPhotosRepo = AppDataSource.getRepository(BusinessPhotos);
+  private readonly plans = new BusinessPlanService();
 
   async list() { const businesses = await this.businessRepo.find({ relations: PROFILE_RELATIONS, take: 50 }); return businesses.map(formatBusinessCard); }
   async getById(businessId: number) { const business = await this.businessRepo.findOne({ where: { businessId }, relations: [...PROFILE_RELATIONS, "menus"] }); if (!business) throw new HttpError(404, "Negocio no encontrado"); return formatBusinessDetail(business); }
@@ -185,6 +187,16 @@ export class BusinessService {
     return this.getById(businessId);
   }
   async updateFoodTypes(businessId: number, ids: number[] = []) { await this.bFoodTypesRepo.delete({ businessId }); if (ids.length) await this.bFoodTypesRepo.save(ids.map((foodTypeId) => this.bFoodTypesRepo.create({ businessId, foodTypeId }))); return this.getById(businessId); }
-  async addPhoto(businessId: number, photoUrl: string) { if (!photoUrl) throw new HttpError(400, "photo_url requerido"); const photo = await this.bPhotosRepo.save(this.bPhotosRepo.create({ businessId, photoUrl })); return { id: photo.photoId, photoUrl: photo.photoUrl }; }
+  async addPhoto(businessId: number, photoUrl: string) {
+    if (!photoUrl) throw new HttpError(400, "photo_url requerido");
+    const photo = await AppDataSource.transaction(async (manager) => {
+      await manager.query("SELECT business_id FROM business WHERE business_id = ? FOR UPDATE", [businessId]);
+      const repo = manager.getRepository(BusinessPhotos);
+      const currentUsage = await repo.count({ where: { businessId } });
+      await this.plans.assertWithinLimit(businessId, "businessPhotos", currentUsage);
+      return repo.save(repo.create({ businessId, photoUrl }));
+    });
+    return { id: photo.photoId, photoUrl: photo.photoUrl };
+  }
   async deletePhoto(businessId: number, photoId: number) { const photo = await this.bPhotosRepo.findOne({ where: { photoId, businessId } }); if (!photo) throw new HttpError(404, "Foto no encontrada"); await this.bPhotosRepo.remove(photo); }
 }
