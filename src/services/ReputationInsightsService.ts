@@ -69,13 +69,15 @@ export class ReputationInsightsService {
         [businessId, period],
       ),
       AppDataSource.query(
-        `SELECT DATE(comment_date) AS date, COUNT(*) AS review_count, ROUND(AVG(rating), 2) AS average_rating
+        `SELECT DATE_FORMAT(comment_date, '%Y-%m-%d') AS review_date,
+                COUNT(*) AS review_count,
+                ROUND(AVG(rating), 2) AS average_rating
          FROM review_comments
          WHERE business_id = ?
            AND rating IS NOT NULL
            AND comment_date >= DATE_SUB(NOW(), INTERVAL ? DAY)
-         GROUP BY DATE(comment_date)
-         ORDER BY DATE(comment_date) ASC`,
+         GROUP BY DATE_FORMAT(comment_date, '%Y-%m-%d')
+         ORDER BY review_date ASC`,
         [businessId, period],
       ),
       AppDataSource.query(
@@ -160,7 +162,7 @@ export class ReputationInsightsService {
       categoryRatings,
       weakestCategory,
       trend: trendRows.map((row: any) => ({
-        date: String(row.date).slice(0, 10),
+        date: String(row.review_date),
         reviewCount: number(row.review_count),
         averageRating: nullableNumber(row.average_rating),
       })),
@@ -229,12 +231,13 @@ export class ReputationInsightsService {
       });
     }
 
-    if (input.weakestCategory?.average !== null && Number(input.weakestCategory.average) <= 3.5) {
+    const weakestCategory = input.weakestCategory;
+    if (weakestCategory?.average !== null && weakestCategory !== null && Number(weakestCategory.average) <= 3.5) {
       alerts.push({
         type: "opportunity",
-        key: `category_${input.weakestCategory.key}`,
-        title: `${input.weakestCategory.label} es la categoría más débil`,
-        detail: `Promedia ${Number(input.weakestCategory.average).toFixed(2)} con ${input.weakestCategory.count} evaluaciones.`,
+        key: `category_${weakestCategory.key}`,
+        title: `${weakestCategory.label} es la categoría más débil`,
+        detail: `Promedia ${Number(weakestCategory.average).toFixed(2)} con ${weakestCategory.count} evaluaciones.`,
       });
     }
 
