@@ -65,8 +65,16 @@ export class OrderController {
       if (req.body.status === "ready") await this.kitchenService.assertAllItemsReady(orderId);
       const data = await this.service.updateStatus(orderId, req.body.status, req.body.note, { userId: actor?.userId, role: businessRole || actor?.role });
       let loyalty = null;
-      if (data.status === "completed") loyalty = await this.loyaltyService.creditOrderById(orderId);
-      res.json({ success: true, message: "Estado actualizado", data: { ...data, loyalty } });
+      let loyaltyPending = false;
+      if (data.status === "completed") {
+        try {
+          loyalty = await this.loyaltyService.creditOrderById(orderId);
+        } catch (error) {
+          loyaltyPending = true;
+          console.error("Loyalty credit pending reconciliation", { orderId, error });
+        }
+      }
+      res.json({ success: true, message: "Estado actualizado", data: { ...data, loyalty, loyaltyPending } });
     } catch (error) { next(error); }
   };
 
