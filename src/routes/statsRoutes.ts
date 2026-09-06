@@ -7,6 +7,13 @@ const router = Router();
 const statsController = new StatsController();
 
 router.get(
+  "/business/:businessId/customers",
+  authenticate,
+  requireBusinessPermission("reports.read", "businessId"),
+  statsController.getCustomerIntelligence,
+);
+
+router.get(
   "/business/:businessId",
   authenticate,
   requireBusinessPermission("reports.read", "businessId"),
