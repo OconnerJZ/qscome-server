@@ -17,9 +17,6 @@ const review = {
 test("expone únicamente el contrato público de una reseña", () => {
   assert.deepEqual(formatPublicReview(review), {
     id: 12,
-    userId: 8,
-    businessId: 4,
-    orderId: undefined,
     userName: "Bryant",
     avatar: "avatars/8.png",
     comment: "Excelente atención",
@@ -37,7 +34,7 @@ test("expone únicamente el contrato público de una reseña", () => {
   });
 });
 
-test("marca una reseña como verificada cuando está ligada a una orden", () => {
+test("marca una reseña como verificada sin exponer el id interno de la orden", () => {
   const verified = {
     ...review,
     orderId: 77,
@@ -50,7 +47,9 @@ test("marca una reseña como verificada cuando está ligada a una orden", () => 
 
   const formatted = formatPublicReview(verified);
   assert.equal(formatted.verifiedOrder, true);
-  assert.equal(formatted.orderId, 77);
+  assert.equal("orderId" in formatted, false);
+  assert.equal("userId" in formatted, false);
+  assert.equal("businessId" in formatted, false);
   assert.equal(formatted.rating, 5);
   assert.deepEqual(formatted.categoryRatings, {
     food: 5,
