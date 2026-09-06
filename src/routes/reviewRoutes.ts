@@ -12,6 +12,15 @@ const controller = new ReviewController();
 router.get("/business/:businessId", controller.listByBusiness);
 router.get("/business/:businessId/summary", controller.summary);
 
+// Reputation Insights es información privada del negocio. Requiere acceso
+// business-scoped y además el servicio valida el entitlement comercial Level 1+.
+router.get(
+  "/business/:businessId/insights",
+  authenticate,
+  requireBusinessPermission("reviews.manage", "businessId"),
+  controller.reputationInsights,
+);
+
 // La elegibilidad y creación se resuelven contra la identidad autenticada y
 // una orden realmente completada; el cliente nunca envía businessId ni userId.
 router.get("/order/:orderId", authenticate, controller.getForOrder);
