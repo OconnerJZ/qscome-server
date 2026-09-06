@@ -69,6 +69,8 @@ export class LoyaltyService {
     if (!program || !program.isActive) {
       return { businessId, active: false, program: program ? this.serializeProgram(program) : null, progress: null };
     }
+
+    await this.reconcileCustomerOrders(userId, businessId);
     const account = await this.accounts.findOne({ where: { businessId, userId } });
     return {
       businessId,
@@ -124,6 +126,24 @@ export class LoyaltyService {
     });
   }
 
+  async reconcileCustomerOrders(userId: number, businessId: number) {
+    this.assertUserId(userId);
+    this.assertBusinessId(businessId);
+    const rows = await AppDataSource.query(
+      `SELECT o.order_id
+       FROM orders o
+       LEFT JOIN loyalty_events e ON e.order_id = o.order_id
+       WHERE o.user_id = ?
+         AND o.business_id = ?
+         AND o.status = 'completed'
+         AND e.order_id IS NULL
+       ORDER BY o.order_id ASC
+       LIMIT 100`,
+      [userId, businessId],
+    );
+    for (const row of rows) await this.creditOrderById(Number(row.order_id));
+  }
+
   async creditCompletedOrder(order: Orders, manager: EntityManager) {
     if (order.status !== "completed" || !order.userId || !order.businessId) return null;
     const programRepo = manager.getRepository(LoyaltyProgram);
@@ -163,8 +183,6 @@ export class LoyaltyService {
       }
     }
 
-    // Re-check only after serializing this customer's account. This prevents a
-    // concurrent retry of the same completed order from incrementing twice.
     const existingEvent = await eventRepo.findOne({ where: { orderId: order.orderId } });
     if (existingEvent) return null;
 
