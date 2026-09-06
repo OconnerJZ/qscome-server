@@ -31,7 +31,7 @@ test("mantiene los cuatro niveles comerciales sin convertir core en paywall", ()
   }
 });
 
-test("la matriz comercial hereda capacidades sin prometer funciones no construidas", () => {
+test("activa Reputation Insights desde Nivel 1 sin habilitar roadmap futuro", () => {
   const free = getBusinessPlanDefinition("free");
   const level1 = getBusinessPlanDefinition("level_1");
   const level2 = getBusinessPlanDefinition("level_2");
@@ -39,17 +39,19 @@ test("la matriz comercial hereda capacidades sin prometer funciones no construid
 
   assert.equal(free.features.find((item) => item.key === "reputation.insights")?.included, false);
   assert.equal(level1.features.find((item) => item.key === "reputation.insights")?.included, true);
-  assert.equal(level1.features.find((item) => item.key === "reputation.insights")?.status, "coming_soon");
+  assert.equal(level1.features.find((item) => item.key === "reputation.insights")?.status, "available");
   assert.equal(level1.features.find((item) => item.key === "customer.intelligence")?.included, false);
   assert.equal(level2.features.find((item) => item.key === "customer.intelligence")?.included, true);
+  assert.equal(level2.features.find((item) => item.key === "customer.intelligence")?.status, "coming_soon");
   assert.equal(level2.features.find((item) => item.key === "automations")?.included, false);
   assert.equal(level3.features.find((item) => item.key === "automations")?.included, true);
+  assert.equal(level3.features.find((item) => item.key === "automations")?.status, "coming_soon");
 
   for (const plan of [free, level1, level2, level3]) {
-    const falselyAvailablePaidFeature = plan.features.find(
-      (item) => item.commercialModel !== "core" && item.status === "available",
+    const unexpectedAvailablePaidFeature = plan.features.find(
+      (item) => item.commercialModel !== "core" && item.status === "available" && item.key !== "reputation.insights",
     );
-    assert.equal(falselyAvailablePaidFeature, undefined);
+    assert.equal(unexpectedAvailablePaidFeature, undefined);
   }
 });
 
