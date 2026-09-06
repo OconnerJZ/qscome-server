@@ -88,6 +88,19 @@ export class LoyaltyService {
 
   async listCustomerPrograms(userId: number) {
     this.assertUserId(userId);
+    const eligibleBusinesses = await AppDataSource.query(
+      `SELECT DISTINCT o.business_id
+       FROM orders o
+       INNER JOIN loyalty_programs p ON p.business_id = o.business_id AND p.is_active = 1
+       WHERE o.user_id = ? AND o.status = 'completed' AND o.business_id IS NOT NULL
+       ORDER BY o.business_id ASC
+       LIMIT 100`,
+      [userId],
+    );
+    for (const row of eligibleBusinesses) {
+      await this.reconcileCustomerOrders(userId, Number(row.business_id));
+    }
+
     const rows = await AppDataSource.query(
       `SELECT a.business_id, a.stamps, a.available_rewards, a.lifetime_stamps,
               p.orders_required, p.reward_percent, p.min_order_amount, p.is_active,
