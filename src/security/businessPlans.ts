@@ -1,8 +1,6 @@
 export const BUSINESS_PLAN_CODES = ["free", "level_1", "level_2", "level_3"] as const;
 export type BusinessPlanCode = (typeof BUSINESS_PLAN_CODES)[number];
 
-// Commercial limits describe business scale. Customer-facing/core ordering flows
-// (including realtime and shared orders) are intentionally not monetization limits.
 export type BusinessPlanLimitKey =
   | "teamMembers"
   | "menuItems"
@@ -38,8 +36,6 @@ export interface BusinessPlanDefinition {
   price: null;
   currency: "MXN";
   policies: Record<BusinessPlanPolicyKey, boolean>;
-  // Kept during the transition so existing clients do not break while they move
-  // to policies.adsEnabled.
   adsEnabled: boolean;
   features: BusinessPlanFeature[];
   limits: Record<BusinessPlanLimitKey, number | null>;
@@ -52,8 +48,35 @@ const PLAN_RANK: Readonly<Record<BusinessPlanCode, number>> = {
   level_3: 3,
 };
 
-// These capabilities are part of qsCome's core product and remain available on
-// every plan. They must never be used as plan gates without a product decision.
+export const APPROVED_PLAN_LIMITS: Readonly<
+  Record<BusinessPlanCode, Record<BusinessPlanLimitKey, number>>
+> = {
+  free: {
+    teamMembers: 3,
+    menuItems: 75,
+    businessPhotos: 4,
+    analyticsHistoryDays: 30,
+  },
+  level_1: {
+    teamMembers: 10,
+    menuItems: 200,
+    businessPhotos: 8,
+    analyticsHistoryDays: 90,
+  },
+  level_2: {
+    teamMembers: 30,
+    menuItems: 500,
+    businessPhotos: 15,
+    analyticsHistoryDays: 365,
+  },
+  level_3: {
+    teamMembers: 90,
+    menuItems: 1500,
+    businessPhotos: 25,
+    analyticsHistoryDays: 730,
+  },
+};
+
 const CORE_FEATURES = [
   ["orders.secure", "Órdenes y precios validados", "Compra y operación sin limitar el volumen de órdenes."],
   ["realtime", "Actualización en tiempo real", "Seguimiento en vivo para cliente y negocio."],
@@ -77,8 +100,6 @@ interface CommercialFeatureDefinition {
   status: "coming_soon";
 }
 
-// B2 value matrix. These entries express product direction, not fake runtime
-// entitlements: every item remains coming_soon until its module actually exists.
 const COMMERCIAL_FEATURES: readonly CommercialFeatureDefinition[] = [
   {
     key: "reputation.insights",
@@ -197,13 +218,6 @@ const LIMIT_KEYS: BusinessPlanLimitKey[] = [
   "analyticsHistoryDays",
 ];
 
-const emptyLimits = (): Record<BusinessPlanLimitKey, null> => ({
-  teamMembers: null,
-  menuItems: null,
-  businessPhotos: null,
-  analyticsHistoryDays: null,
-});
-
 const featuresForPlan = (code: BusinessPlanCode): BusinessPlanFeature[] => [
   ...CORE_FEATURES.map(([key, label, description]) => ({
     key,
@@ -242,38 +256,14 @@ const definition = (
   policies: { adsEnabled },
   adsEnabled,
   features: featuresForPlan(code),
-  limits: emptyLimits(),
+  limits: { ...APPROVED_PLAN_LIMITS[code] },
 });
 
 const BASE_CATALOG: BusinessPlanDefinition[] = [
-  definition(
-    "free",
-    "Gratis",
-    "Todo lo esencial para comenzar a vender y operar un negocio real; puede mostrar publicidad.",
-    "Empieza a vender",
-    true,
-  ),
-  definition(
-    "level_1",
-    "Nivel 1",
-    "Profesionaliza la operación y prepara herramientas de reputación, lealtad y crecimiento.",
-    "Profesionaliza tu negocio",
-    false,
-  ),
-  definition(
-    "level_2",
-    "Nivel 2",
-    "Para negocios en crecimiento que necesitan mayor escala, inteligencia comercial y marketing avanzado.",
-    "Haz crecer tu negocio",
-    false,
-  ),
-  definition(
-    "level_3",
-    "Nivel 3",
-    "Para optimización, automatización y necesidades de escala avanzada a medida que se incorporen.",
-    "Optimiza y escala",
-    false,
-  ),
+  definition("free", "Gratis", "Todo lo esencial para comenzar a vender y operar un negocio real; puede mostrar publicidad.", "Empieza a vender", true),
+  definition("level_1", "Nivel 1", "Profesionaliza la operación y prepara herramientas de reputación, lealtad y crecimiento.", "Profesionaliza tu negocio", false),
+  definition("level_2", "Nivel 2", "Para negocios en crecimiento que necesitan mayor escala, inteligencia comercial y marketing avanzado.", "Haz crecer tu negocio", false),
+  definition("level_3", "Nivel 3", "Para optimización, automatización y necesidades de escala avanzada a medida que se incorporen.", "Optimiza y escala", false),
 ];
 
 const configuredLimits = () => {
@@ -295,19 +285,16 @@ export const getBusinessPlanCatalog = (): BusinessPlanDefinition[] => {
     limits: Object.fromEntries(
       LIMIT_KEYS.map((key) => {
         const raw = overrides[plan.code]?.[key];
-        const value = raw === null || raw === undefined ? null : Number(raw);
-        return [
-          key,
-          value !== null && Number.isInteger(value) && value >= 0 ? value : null,
-        ];
+        if (raw === undefined) return [key, plan.limits[key]];
+        const value = raw === null ? null : Number(raw);
+        return [key, value !== null && Number.isInteger(value) && value >= 0 ? value : plan.limits[key]];
       }),
     ) as Record<BusinessPlanLimitKey, number | null>,
   }));
 };
 
 export const getBusinessPlanDefinition = (code?: string | null) =>
-  getBusinessPlanCatalog().find((plan) => plan.code === code) ||
-  getBusinessPlanCatalog()[0];
+  getBusinessPlanCatalog().find((plan) => plan.code === code) || getBusinessPlanCatalog()[0];
 
 export const getBusinessPlanRank = (code?: string | null) =>
   isBusinessPlanCode(code) ? PLAN_RANK[code] : PLAN_RANK.free;
