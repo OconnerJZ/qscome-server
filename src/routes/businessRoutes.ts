@@ -17,7 +17,11 @@ import { BusinessTeamController } from "../controllers/BusinessTeamController";
 import { AcceptBusinessInvitationCodeDto, InviteBusinessMemberDto, TransferBusinessOwnershipDto, UpdateBusinessMemberRoleDto } from "../dtos/businessTeam.dto";
 import { createRateLimiter } from "../middlewares/rateLimit";
 import { BusinessPlanController } from "../controllers/BusinessPlanController";
-import { AssignBusinessPlanDto } from "../dtos/businessPlan.dto";
+import {
+  AssignBusinessPlanDto,
+  CancelBusinessPlanTrialDto,
+  GrantBusinessPlanTrialDto,
+} from "../dtos/businessPlan.dto";
 import { authorize } from "../middlewares/roleMiddleware";
 
 const router = Router();
@@ -34,7 +38,14 @@ router.post("/invitations/:token/accept", authenticate, teamController.accept);
 router.post("/invitations/accept-code", authenticate, invitationCodeLimiter, validateDto(AcceptBusinessInvitationCodeDto), teamController.acceptCode);
 router.get("/:id/team", authenticate, requireBusinessPermission("team.manage", "id"), teamController.list);
 router.get("/:id/plan", authenticate, requireBusinessPermission("settings.update", "id"), planController.get);
+
+// Platform-admin operations. Business owners may inspect their own plan but may
+// not self-upgrade, grant trials or read internal commercial audit history.
 router.patch("/:id/plan", authenticate, authorize("admin"), validateDto(AssignBusinessPlanDto), planController.assign);
+router.post("/:id/plan/trial", authenticate, authorize("admin"), validateDto(GrantBusinessPlanTrialDto), planController.grantTrial);
+router.post("/:id/plan/trial/cancel", authenticate, authorize("admin"), validateDto(CancelBusinessPlanTrialDto), planController.cancelTrial);
+router.get("/:id/plan/history", authenticate, authorize("admin"), planController.history);
+
 router.post("/:id/invitations", authenticate, requireBusinessPermission("team.manage", "id"), validateDto(InviteBusinessMemberDto), teamController.invite);
 router.delete("/:id/invitations/:invitationId", authenticate, requireBusinessPermission("team.manage", "id"), teamController.cancel);
 router.patch("/:id/members/:userId", authenticate, requireBusinessPermission("team.manage", "id"), validateDto(UpdateBusinessMemberRoleDto), teamController.updateMember);
