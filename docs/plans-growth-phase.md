@@ -19,6 +19,7 @@
 - kitchen workflow
 - transfer evidence
 - Shared Orders
+- verified customer reviews and business responses
 - basic business analytics
 - business-scoped roles and permissions
 
@@ -31,7 +32,7 @@
 
 ### Growth capabilities — roadmap, not implemented entitlements yet
 
-- Reputation Center
+- advanced Reputation Center insights (trends, alerts, themes)
 - loyalty management
 - customer intelligence
 - Marketing Center
@@ -87,6 +88,20 @@ Platform administration uses the global `user_roles.role_name = 'admin'` role. P
 - backend security: `authenticate` + `authorize('admin')`
 - frontend guards are UX only; backend authorization remains authoritative
 
+## Reviews domain
+
+The existing `review_comments` table remains the canonical review store and is evolved rather than replaced.
+
+- one verified review per completed order
+- the authenticated order owner is resolved by the backend; client payload cannot choose `userId` or `businessId`
+- overall rating is 1–5
+- optional food/time/presentation/accuracy ratings are 1–5
+- a business response is public and does not alter the customer's score
+- `reviews.manage` is business-scoped and available to primary owner, co-owner and manager
+- public review payloads expose verification state but not internal user/order/business identifiers
+- historical review rows remain readable while verified-order data is introduced
+- private customer reliability feedback is deliberately a separate follow-up; it is not mixed into public ratings
+
 ## Delivery blocks
 
 ### B1 — Plan foundation
@@ -107,17 +122,35 @@ Platform administration uses the global `user_roles.role_name = 'admin'` role. P
 
 - [ ] approve feature/value matrix for FREE / LEVEL 1 / LEVEL 2 / LEVEL 3
 - [ ] approve numeric limits
-- [ ] define upgrade/downgrade behavior when current usage exceeds a lower plan
+- [ ] define final upgrade/downgrade policy when current usage exceeds a lower plan
+- [x] add non-destructive admin impact preview before changing plan
 - [ ] add race-safe enforcement for approved hard limits
 - [ ] owner UX for limits and upgrade guidance without aggressive upselling
 
+No downgrade currently deletes or disables existing products, team members or photos. The impact preview is informational until numeric limits and the downgrade policy are approved.
+
 ### B3 — Reviews & Reputation
 
-- [ ] verified-order customer reviews
-- [ ] public business rating/reviews
-- [ ] owner response flow
+#### B3.1 Core reviews — complete
+
+- [x] evolve the existing review schema without creating a parallel module
+- [x] verified-order customer reviews
+- [x] one review per completed order enforced in backend/database
+- [x] 1–5 overall rating and optional category ratings
+- [x] public business rating/reviews
+- [x] public verified-purchase indicator without leaking internal order/user ids
+- [x] customer review flow from My Orders
+- [x] business-scoped `reviews.manage` permission
+- [x] owner/co-owner/manager response flow
+- [x] owner review dashboard with basic aggregate reputation summary
+- [x] Reviews remain core and are not plan-gated
+
+#### B3.2 Reputation intelligence / trust — later
+
 - [ ] private customer reliability feedback for platform safety
-- [ ] Level 1+ reputation insights only after the core review system exists
+- [ ] define abuse/dispute safeguards before using customer reliability signals
+- [ ] Level 1+ reputation trends, alerts and deeper insights
+- [ ] sentiment/themes only after enough review volume exists
 
 ### B4 — Loyalty
 
@@ -151,6 +184,7 @@ Platform administration uses the global `user_roles.role_name = 'admin'` role. P
 - [x] assign plan
 - [x] grant/cancel trial
 - [x] inspect plan history
+- [x] preview commercial impact before plan assignment
 - [x] keep plan mutations protected by backend admin authorization
 
 The full Admin Control Center remains a later phase.
