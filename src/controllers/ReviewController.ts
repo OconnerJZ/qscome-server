@@ -1,8 +1,12 @@
 import { NextFunction, Request, Response } from "express";
 import { ReviewService } from "../services/ReviewService";
+import { ReviewManagementService } from "../services/ReviewManagementService";
 
 export class ReviewController {
-  constructor(private readonly service = new ReviewService()) {}
+  constructor(
+    private readonly service = new ReviewService(),
+    private readonly management = new ReviewManagementService(),
+  ) {}
 
   listByBusiness = async (
     req: Request,
@@ -18,6 +22,63 @@ export class ReviewController {
           ? "Reseñas consultadas correctamente"
           : "Este negocio aún no tiene reseñas",
         data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  summary = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({
+        success: true,
+        data: await this.management.summary(Number.parseInt(req.params.businessId, 10)),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getForOrder = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({
+        success: true,
+        data: await this.management.getForOrder(
+          Number((req as any).user?.userId),
+          Number.parseInt(req.params.orderId, 10),
+        ),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  create = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.status(201).json({
+        success: true,
+        message: "Reseña publicada correctamente",
+        data: await this.management.createVerifiedReview(
+          Number((req as any).user?.userId),
+          req.body,
+        ),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  respond = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({
+        success: true,
+        message: "Respuesta publicada correctamente",
+        data: await this.management.respond(
+          Number.parseInt(req.params.businessId, 10),
+          Number.parseInt(req.params.reviewId, 10),
+          Number((req as any).user?.userId),
+          req.body.response,
+        ),
       });
     } catch (error) {
       next(error);
