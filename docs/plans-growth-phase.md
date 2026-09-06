@@ -17,6 +17,7 @@
 - secure ordering and validated prices
 - realtime updates
 - kitchen workflow
+- product customization/modifiers
 - transfer evidence
 - Shared Orders
 - verified customer reviews and business responses
@@ -30,17 +31,43 @@
 - business gallery photos
 - analytics history days
 
-### Growth capabilities — roadmap, not implemented entitlements yet
+### Commercial value matrix
 
-- advanced Reputation Center insights (trends, alerts, themes)
+The typed plan catalog is the source of truth. Commercial features can be assigned to a tier before implementation, but they remain `coming_soon` until the actual module exists; no plan may advertise a paid capability as available just because it appears in the roadmap.
+
+#### FREE — Empieza a vender
+
+All core capabilities remain available. FREE may display platform advertising and uses scale limits only after numeric values are explicitly approved.
+
+#### LEVEL 1 — Profesionaliza tu negocio
+
+Planned value:
+
+- Reputation Insights
 - loyalty management
-- customer intelligence
 - Marketing Center
-- campaign segmentation
+- benefits for the separate qsCome Ads product (credits/conditions), never guaranteed organic ranking
+- higher scale once numeric limits are approved
+
+#### LEVEL 2 — Haz crecer tu negocio
+
+Inherits LEVEL 1 and adds planned value:
+
 - advanced analytics
-- exports
+- Customer Intelligence
+- customer segments
+- advanced exports
+- advanced marketing
+- higher scale/history once numeric limits are approved
+
+#### LEVEL 3 — Optimiza y escala
+
+Inherits LEVEL 2 and adds planned value:
+
 - automations
-- multi-location/integrations when justified
+- multi-location
+- advanced integrations
+- highest scale once numeric limits are approved
 
 ### Advertising product — separate from subscription
 
@@ -65,7 +92,7 @@ Requirements:
 - LEVEL 2 — grow the business
 - LEVEL 3 — optimize and scale
 
-Prices and numeric limits intentionally remain undefined until the value matrix is approved.
+Prices and numeric limits intentionally remain undefined until numeric values are approved explicitly.
 
 ## Subscription domain
 
@@ -77,6 +104,19 @@ Each business has exactly one `business_plan_subscriptions` row.
 - plan and trial changes are recorded in `business_plan_audit_events`.
 - business suspension/lifecycle is not a subscription status.
 - `past_due` remains reserved for future billing integration.
+
+## Upgrade/downgrade policy
+
+Plan changes are non-destructive.
+
+- upgrades apply immediately to the base plan and cancel an active trial to avoid ambiguous state
+- downgrades never delete or archive existing products, team members or photos
+- if a future approved hard limit is lower than current usage, existing resources remain usable
+- only new resource creation in the exceeded category is blocked while usage remains at/above the enforced limit
+- reducing/deleting resources can bring the business back under the limit
+- order volume, realtime traffic, customers, Shared Orders and reviews are never blocked by downgrade
+- the admin impact preview shows overages before assignment
+- no hard limit is activated while its catalog value remains `null`
 
 ## Admin access
 
@@ -120,14 +160,14 @@ The existing `review_comments` table remains the canonical review store and is e
 
 ### B2 — Commercial matrix
 
-- [ ] approve feature/value matrix for FREE / LEVEL 1 / LEVEL 2 / LEVEL 3
+- [x] define/approve feature-value matrix for FREE / LEVEL 1 / LEVEL 2 / LEVEL 3
 - [ ] approve numeric limits
-- [ ] define final upgrade/downgrade policy when current usage exceeds a lower plan
+- [x] define non-destructive upgrade/downgrade policy
 - [x] add non-destructive admin impact preview before changing plan
 - [ ] add race-safe enforcement for approved hard limits
-- [ ] owner UX for limits and upgrade guidance without aggressive upselling
+- [x] owner UX for value comparison without aggressive upselling
 
-No downgrade currently deletes or disables existing products, team members or photos. The impact preview is informational until numeric limits and the downgrade policy are approved.
+No numeric limit is active by default. `null` remains the safe value until a quantity is explicitly approved.
 
 ### B3 — Reviews & Reputation
 
