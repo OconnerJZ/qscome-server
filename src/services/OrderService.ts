@@ -12,6 +12,7 @@ import { HttpError } from "../utils/httpError";
 import { formatOrder, getStatusLabel, isValidStatus } from "../serializers/order.serializer";
 import { emitNewOrder, emitOrderStatusUpdate, emitOrderUpdated } from "../utils/socket";
 import { OrderAuditService } from "./OrderAuditService";
+import { LoyaltyService } from "./LoyaltyService";
 import { EntityManager, In } from "typeorm";
 import { SharedOrderParticipant } from "../entities/SharedOrderParticipant";
 import { getSharedOrderParticipantUserIds } from "../security/sharedOrderAccess";
@@ -25,6 +26,7 @@ export interface CreateOrderInput {
   deliveryLocation?: { latitude?: number; longitude?: number; city?: string; postalCode?: string; state?: string; } | null;
   notes?: string;
   sharedSessionId?: string | null;
+  useLoyaltyReward?: boolean;
 }
 interface OrderActor { userId?: number; role?: string; }
 interface ModifierSnapshot { choiceId: number; groupTitle: string; choiceName: string; priceExtra: number; selectionState: OrderModifierState; }
@@ -81,6 +83,7 @@ export const buildModifierSnapshots = (menu: Menus, requested: CreateOrderModifi
 export class OrderService {
   private readonly orderRepo = AppDataSource.getRepository(Orders);
   private readonly auditService = new OrderAuditService();
+  private readonly loyaltyService = new LoyaltyService();
 
   async list() {
     const orders = await this.orderRepo.find({ relations: ["user", ...DETAIL_RELATIONS], order: { createdAt: "DESC" }, take: 100 });
@@ -96,16 +99,13 @@ export class OrderService {
     const sharedSessionIds = [...new Set(memberships.map((membership) => membership.sessionId))];
     const where = sharedSessionIds.length ? [{ userId }, { sharedSessionId: In(sharedSessionIds) }] : { userId };
     const orders = await this.orderRepo.find({ where, relations: DETAIL_RELATIONS, order: { createdAt: "DESC" } });
-    return orders.map((order) => ({
-      ...formatOrder(order),
-      viewerCanManage: Number(order.userId) === Number(userId),
-    }));
+    return orders.map((order) => ({ ...formatOrder(order), viewerCanManage: Number(order.userId) === Number(userId) }));
   }
-  async getByBusiness(businessId: number) { return (await this.orderRepo.find({ where: { businessId }, relations: ["user", "orderDetails", "orderDetails.menu", "orderDetails.orderDetailOptions", "orderStatusHistories"], order: { createdAt: "DESC" } })).map(formatOrder); }
+  async getByBusiness(businessId: number) {
+    return (await this.orderRepo.find({ where: { businessId }, relations: ["user", "orderDetails", "orderDetails.menu", "orderDetails.orderDetailOptions", "orderStatusHistories"], order: { createdAt: "DESC" } })).map(formatOrder);
+  }
 
-  async create(input: CreateOrderInput) {
-    return (await this.createBatch([input]))[0];
-  }
+  async create(input: CreateOrderInput) { return (await this.createBatch([input]))[0]; }
 
   async createBatch(
     inputs: CreateOrderInput[],
@@ -133,80 +133,100 @@ export class OrderService {
     const { userId, businessId, items, orderType = "pickup", paymentMethod = "cash", customerName, customerPhone, deliveryAddress, deliveryAddressId, deliveryLocation, notes } = input;
     const normalizedBusinessId = Number(businessId);
     if (!userId) throw new HttpError(401, "Usuario no autenticado");
-    if (!Number.isInteger(normalizedBusinessId) || normalizedBusinessId < 1)
-      throw new HttpError(400, "Negocio inválido");
-    if (!items?.length)
-      throw new HttpError(400, "La orden debe contener al menos un item");
-    if (orderType === "delivery" && !deliveryAddress?.trim())
-      throw new HttpError(
-        400,
-        "La dirección de entrega es requerida para delivery",
-      );
+    if (!Number.isInteger(normalizedBusinessId) || normalizedBusinessId < 1) throw new HttpError(400, "Negocio inválido");
+    if (!items?.length) throw new HttpError(400, "La orden debe contener al menos un item");
+    if (orderType === "delivery" && !deliveryAddress?.trim()) throw new HttpError(400, "La dirección de entrega es requerida para delivery");
 
-      const orderRepo = manager.getRepository(Orders), detailRepo = manager.getRepository(OrderDetails), detailOptionRepo = manager.getRepository(OrderDetailOptions), historyRepo = manager.getRepository(OrderStatusHistory), menuRepo = manager.getRepository(Menus);
-      const configuredMethod = await manager.getRepository(BusinessPaymentMethods).findOne({ where: { businessId: normalizedBusinessId, method: paymentMethod } });
-      if (!configuredMethod?.isActive) throw new HttpError(400, "El método de pago seleccionado no está disponible");
-      let transferBankSnapshotJson: string | null = null;
-      if (paymentMethod === "transfer") {
-        let rawConfig: unknown = {};
-        try { rawConfig = configuredMethod.configJson ? JSON.parse(configuredMethod.configJson) : {}; } catch { rawConfig = {}; }
-        const normalizedConfig = normalizeTransferBankConfig(rawConfig);
-        assertUsableTransferConfig(normalizedConfig);
-        transferBankSnapshotJson = JSON.stringify(normalizedConfig);
-      }
-      const normalizedAddressId = orderType === "delivery" && deliveryAddressId ? Number(deliveryAddressId) : null;
-      if (normalizedAddressId) {
-        const address = await manager.getRepository(UserAddresses).findOne({
-          where: { addressId: normalizedAddressId, userId },
-        });
-        if (!address) throw new HttpError(403, "La dirección guardada no pertenece al cliente");
-      }
-      const pricedItems: PricedOrderItem[] = [];
-      let calculatedTotal = 0;
-      for (const item of items) {
-        const quantity = Number(item.quantity);
-        if (!Number.isInteger(quantity) || quantity < 1) throw new HttpError(400, "Cantidad de producto inválida");
-        const menu = await menuRepo.findOne({ where: { menuId: Number(item.id) }, relations: ["menuOptionGroups", "menuOptionGroups.menuOptionChoices"] });
-        if (!menu || Number(menu.businessId) !== normalizedBusinessId) throw new HttpError(400, `El producto ${item.id} no pertenece a este negocio`);
-        if (!menu.isAvailable || menu.isArchived) throw new HttpError(409, `${menu.itemName || "El producto"} ya no está disponible`);
-        const basePrice = Number.parseFloat(menu.price || "0");
-        const { snapshots, extraPerUnit } = buildModifierSnapshots(menu, item.modifiers || []);
-        const unitPrice = Number((basePrice + extraPerUnit).toFixed(2)), subtotal = Number((unitPrice * quantity).toFixed(2));
-        calculatedTotal = Number((calculatedTotal + subtotal).toFixed(2));
-        pricedItems.push({ ...item, quantity, itemName: menu.itemName || `Producto ${menu.menuId}`, basePrice, unitPrice, subtotal, modifierSnapshots: snapshots });
-      }
-      const hasCoords = orderType === "delivery" && deliveryLocation?.latitude != null && deliveryLocation?.longitude != null;
-      const order = orderRepo.create({ userId, businessId: normalizedBusinessId, orderType, paymentMethod, transferBankSnapshotJson, sharedSessionId: input.sharedSessionId || null, customerName, customerPhone, deliveryAddress: orderType === "delivery" ? deliveryAddress : null, deliveryAddressId: normalizedAddressId, deliveryLatitude: hasCoords ? Number(deliveryLocation!.latitude).toFixed(8) : null, deliveryLongitude: hasCoords ? Number(deliveryLocation!.longitude).toFixed(8) : null, deliveryCity: orderType === "delivery" ? deliveryLocation?.city || null : null, deliveryPostalCode: orderType === "delivery" ? deliveryLocation?.postalCode || null : null, orderNotes: notes, total: calculatedTotal.toFixed(2), status: "pending", deliveryStatus: "unassigned", orderDate: new Date() });
-      await orderRepo.save(order);
-      for (const item of pricedItems) {
-        const detail = await detailRepo.save(detailRepo.create({ orderId: order.orderId, menuId: item.id, itemName: item.itemName, unitPrice: item.unitPrice.toFixed(2), quantity: item.quantity, subtotal: item.subtotal.toFixed(2), notes: item.note || null, sharedParticipantLabel: item.participantLabel || null, kitchenStatus: "pending" }));
-        if (item.modifierSnapshots.length) await detailOptionRepo.save(item.modifierSnapshots.map((modifier) => detailOptionRepo.create({ orderDetailId: detail.orderDetailId, optionId: null, choiceId: modifier.choiceId, groupTitle: modifier.groupTitle, choiceName: modifier.choiceName, priceExtra: modifier.priceExtra.toFixed(2), selectionState: modifier.selectionState })));
-      }
-      await historyRepo.save(historyRepo.create({ orderId: order.orderId, status: "pending", not: "Orden creada", changedBy: userId }));
-      await this.auditService.record({
-        orderId: order.orderId,
-        businessId: normalizedBusinessId,
-        actorUserId: userId,
-        actorRole: "customer",
-        action: "ORDER_CREATED",
-        orderVersion: order.version,
-        metadata: {
-          orderType,
-          total: calculatedTotal,
-          itemCount: pricedItems.reduce((sum, item) => sum + item.quantity, 0),
-          sharedSessionId: input.sharedSessionId || null,
-          items: pricedItems.map((item) => ({ menuId: item.id, name: item.itemName, quantity: item.quantity, subtotal: item.subtotal, participantLabel: item.participantLabel || null, modifiers: item.modifierSnapshots })),
-        },
-      }, manager);
-      return order.orderId;
+    const orderRepo = manager.getRepository(Orders), detailRepo = manager.getRepository(OrderDetails), detailOptionRepo = manager.getRepository(OrderDetailOptions), historyRepo = manager.getRepository(OrderStatusHistory), menuRepo = manager.getRepository(Menus);
+    const configuredMethod = await manager.getRepository(BusinessPaymentMethods).findOne({ where: { businessId: normalizedBusinessId, method: paymentMethod } });
+    if (!configuredMethod?.isActive) throw new HttpError(400, "El método de pago seleccionado no está disponible");
+    let transferBankSnapshotJson: string | null = null;
+    if (paymentMethod === "transfer") {
+      let rawConfig: unknown = {};
+      try { rawConfig = configuredMethod.configJson ? JSON.parse(configuredMethod.configJson) : {}; } catch { rawConfig = {}; }
+      const normalizedConfig = normalizeTransferBankConfig(rawConfig);
+      assertUsableTransferConfig(normalizedConfig);
+      transferBankSnapshotJson = JSON.stringify(normalizedConfig);
+    }
+    const normalizedAddressId = orderType === "delivery" && deliveryAddressId ? Number(deliveryAddressId) : null;
+    if (normalizedAddressId) {
+      const address = await manager.getRepository(UserAddresses).findOne({ where: { addressId: normalizedAddressId, userId } });
+      if (!address) throw new HttpError(403, "La dirección guardada no pertenece al cliente");
+    }
+
+    const pricedItems: PricedOrderItem[] = [];
+    let calculatedTotal = 0;
+    for (const item of items) {
+      const quantity = Number(item.quantity);
+      if (!Number.isInteger(quantity) || quantity < 1) throw new HttpError(400, "Cantidad de producto inválida");
+      const menu = await menuRepo.findOne({ where: { menuId: Number(item.id) }, relations: ["menuOptionGroups", "menuOptionGroups.menuOptionChoices"] });
+      if (!menu || Number(menu.businessId) !== normalizedBusinessId) throw new HttpError(400, `El producto ${item.id} no pertenece a este negocio`);
+      if (!menu.isAvailable || menu.isArchived) throw new HttpError(409, `${menu.itemName || "El producto"} ya no está disponible`);
+      const basePrice = Number.parseFloat(menu.price || "0");
+      const { snapshots, extraPerUnit } = buildModifierSnapshots(menu, item.modifiers || []);
+      const unitPrice = Number((basePrice + extraPerUnit).toFixed(2));
+      const subtotal = Number((unitPrice * quantity).toFixed(2));
+      calculatedTotal = Number((calculatedTotal + subtotal).toFixed(2));
+      pricedItems.push({ ...item, quantity, itemName: menu.itemName || `Producto ${menu.menuId}`, basePrice, unitPrice, subtotal, modifierSnapshots: snapshots });
+    }
+
+    const hasCoords = orderType === "delivery" && deliveryLocation?.latitude != null && deliveryLocation?.longitude != null;
+    const order = orderRepo.create({
+      userId,
+      businessId: normalizedBusinessId,
+      orderType,
+      paymentMethod,
+      transferBankSnapshotJson,
+      sharedSessionId: input.sharedSessionId || null,
+      customerName,
+      customerPhone,
+      deliveryAddress: orderType === "delivery" ? deliveryAddress : null,
+      deliveryAddressId: normalizedAddressId,
+      deliveryLatitude: hasCoords ? Number(deliveryLocation!.latitude).toFixed(8) : null,
+      deliveryLongitude: hasCoords ? Number(deliveryLocation!.longitude).toFixed(8) : null,
+      deliveryCity: orderType === "delivery" ? deliveryLocation?.city || null : null,
+      deliveryPostalCode: orderType === "delivery" ? deliveryLocation?.postalCode || null : null,
+      orderNotes: notes,
+      total: calculatedTotal.toFixed(2),
+      loyaltyRewardApplied: false,
+      loyaltyRewardPercent: null,
+      loyaltyDiscountAmount: null,
+      loyaltySubtotalBeforeDiscount: null,
+      status: "pending",
+      deliveryStatus: "unassigned",
+      orderDate: new Date(),
+    });
+    await orderRepo.save(order);
+
+    let loyaltyRedemption = null;
+    if (input.useLoyaltyReward === true) loyaltyRedemption = await this.loyaltyService.redeemForOrder(order, calculatedTotal, manager);
+
+    for (const item of pricedItems) {
+      const detail = await detailRepo.save(detailRepo.create({ orderId: order.orderId, menuId: item.id, itemName: item.itemName, unitPrice: item.unitPrice.toFixed(2), quantity: item.quantity, subtotal: item.subtotal.toFixed(2), notes: item.note || null, sharedParticipantLabel: item.participantLabel || null, kitchenStatus: "pending" }));
+      if (item.modifierSnapshots.length) await detailOptionRepo.save(item.modifierSnapshots.map((modifier) => detailOptionRepo.create({ orderDetailId: detail.orderDetailId, optionId: null, choiceId: modifier.choiceId, groupTitle: modifier.groupTitle, choiceName: modifier.choiceName, priceExtra: modifier.priceExtra.toFixed(2), selectionState: modifier.selectionState })));
+    }
+    await historyRepo.save(historyRepo.create({ orderId: order.orderId, status: "pending", not: "Orden creada", changedBy: userId }));
+    await this.auditService.record({
+      orderId: order.orderId,
+      businessId: normalizedBusinessId,
+      actorUserId: userId,
+      actorRole: "customer",
+      action: "ORDER_CREATED",
+      orderVersion: order.version,
+      metadata: {
+        orderType,
+        subtotal: calculatedTotal,
+        total: Number(order.total || calculatedTotal),
+        loyaltyRedemption,
+        itemCount: pricedItems.reduce((sum, item) => sum + item.quantity, 0),
+        sharedSessionId: input.sharedSessionId || null,
+        items: pricedItems.map((item) => ({ menuId: item.id, name: item.itemName, quantity: item.quantity, subtotal: item.subtotal, participantLabel: item.participantLabel || null, modifiers: item.modifierSnapshots })),
+      },
+    }, manager);
+    return order.orderId;
   }
 
-  async updateStatus(
-    orderId: number,
-    status: string,
-    note: string | undefined,
-    actor: OrderActor = {},
-  ) {
+  async updateStatus(orderId: number, status: string, note: string | undefined, actor: OrderActor = {}) {
     if (!isValidStatus(status)) throw new HttpError(400, "Estado inválido");
     const order = await AppDataSource.transaction(async (manager) => {
       const orderRepo = manager.getRepository(Orders);
@@ -221,21 +241,28 @@ export class OrderService {
         if (currentOrder.status !== "pending") throw new HttpError(409, "La orden ya fue aceptada y no puede cancelarse desde la aplicación");
       }
       if (!canMoveToStatus(currentOrder, status)) throw new HttpError(409, `Transición inválida: ${currentOrder.status} → ${status}`);
+
+      let loyaltyRestore = null;
+      if (status === "cancelled") loyaltyRestore = await this.loyaltyService.restoreRewardForCancelledOrder(currentOrder, manager);
+
       currentOrder.status = status;
       await orderRepo.save(currentOrder);
       await historyRepo.save(historyRepo.create({ orderId: currentOrder.orderId, status, not: note || `Estado cambiado a ${status}`, changedBy: actor.userId }));
-      await this.auditService.record({ orderId, businessId: currentOrder.businessId, actorUserId: actor.userId, actorRole: actor.role, action: status === "cancelled" ? "ORDER_CANCELLED" : "ORDER_STATUS_CHANGED", orderVersion: currentOrder.version, metadata: { from: previousStatus, to: status, note: note || null } }, manager);
+      await this.auditService.record({
+        orderId,
+        businessId: currentOrder.businessId,
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        action: status === "cancelled" ? "ORDER_CANCELLED" : "ORDER_STATUS_CHANGED",
+        orderVersion: currentOrder.version,
+        metadata: { from: previousStatus, to: status, note: note || null, loyaltyRestore },
+      }, manager);
       return currentOrder;
     });
+
     const participantIds = order.sharedSessionId ? await getSharedOrderParticipantUserIds(order.sharedSessionId) : [];
     const timestamp = new Date().toISOString();
-    emitOrderUpdated(Number(order.businessId), null, {
-      id: order.orderId,
-      orderId: order.orderId,
-      businessId: order.businessId,
-      status: order.status,
-      updatedAt: timestamp,
-    });
+    emitOrderUpdated(Number(order.businessId), null, { id: order.orderId, orderId: order.orderId, businessId: order.businessId, status: order.status, updatedAt: timestamp });
     const realtimeAudience = [order.userId, ...participantIds]
       .filter((userId): userId is number => Number.isInteger(Number(userId)))
       .map(Number);
