@@ -231,7 +231,7 @@ export class OrderService {
     const order = await AppDataSource.transaction(async (manager) => {
       const orderRepo = manager.getRepository(Orders);
       const historyRepo = manager.getRepository(OrderStatusHistory);
-      const currentOrder = await orderRepo.findOne({ where: { orderId } });
+      const currentOrder = await orderRepo.findOne({ where: { orderId }, lock: { mode: "pessimistic_write" } });
       if (!currentOrder) throw new HttpError(404, "Orden no encontrada");
       const previousStatus = currentOrder.status;
       const isPrivilegedRole = ["admin", "owner", "primary_owner", "co_owner", "manager", "cashier"].includes(actor.role || "");
