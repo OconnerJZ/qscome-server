@@ -25,6 +25,7 @@ import { HealthService } from "./src/services/HealthService";
 import { validateProductionEnvironment } from "./src/config/environment";
 import reviewRoutes from "./src/routes/reviewRoutes";
 import loyaltyRoutes from "./src/routes/loyaltyRoutes";
+import marketingRoutes from "./src/routes/marketingRoutes";
 
 dotenv.config({ debug: false });
 validateProductionEnvironment();
@@ -72,6 +73,7 @@ app.use("/api/catalogs", catalogRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/loyalty", loyaltyRoutes);
+app.use("/api/marketing", marketingRoutes);
 
 app.use(errorHandler);
 app.use((_req, res) => res.status(404).json({ message: "Ruta no encontrada" }));
