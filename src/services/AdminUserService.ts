@@ -1,4 +1,4 @@
-import { Brackets } from "typeorm";
+import { Brackets, EntityManager } from "typeorm";
 import { AppDataSource } from "../utils/db";
 import { AuditLogs } from "../entities/AuditLogs";
 import { UserRoles } from "../entities/UserRoles";
@@ -292,7 +292,7 @@ export class AdminUserService {
     }
   }
 
-  private async assertAnotherActiveAdminExists(manager: any, excludedUserId: number) {
+  private async assertAnotherActiveAdminExists(manager: EntityManager, excludedUserId: number) {
     const activeAdmins = await manager
       .getRepository(Users)
       .createQueryBuilder("adminUser")
