@@ -16,6 +16,15 @@ type TrialSnapshot = {
   endsAt?: Date | string | null;
 } | null | undefined;
 
+type DecoratedTrial = Exclude<TrialSnapshot, null | undefined> & {
+  lifecycle: AdminTrialLifecycle;
+  canCancel: boolean;
+};
+
+type DecoratedPlan<T extends { trial?: TrialSnapshot }> = T & {
+  trial?: DecoratedTrial | null;
+};
+
 const timestampOf = (value: Date | string | null | undefined) => {
   if (!value) return null;
   const timestamp = value instanceof Date ? value.getTime() : new Date(value).getTime();
@@ -244,8 +253,8 @@ export class AdminPlanService {
     });
   }
 
-  private decoratePlan<T extends { trial?: TrialSnapshot }>(plan: T) {
-    if (!plan.trial) return plan;
+  private decoratePlan<T extends { trial?: TrialSnapshot }>(plan: T): DecoratedPlan<T> {
+    if (!plan.trial) return plan as DecoratedPlan<T>;
     const lifecycle = classifyAdminTrialLifecycle(plan.trial);
     return {
       ...plan,
@@ -254,6 +263,6 @@ export class AdminPlanService {
         lifecycle,
         canCancel: lifecycle === "active" || lifecycle === "scheduled",
       },
-    };
+    } as DecoratedPlan<T>;
   }
 }
