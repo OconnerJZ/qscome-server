@@ -37,7 +37,7 @@ export class CustomerIntelligenceService {
     observationStart.setDate(observationStart.getDate() - Number(historyLimit || requestedPeriod));
 
     const [cohortRows, lifecycleRows, inactivityRows, sharedRows] = await Promise.all([
-      this.cohorts(businessId, period.currentStart, period.currentEnd),
+      this.cohorts(businessId, observationStart, period.currentStart, period.currentEnd),
       this.lifecycle(businessId, observationStart, period.currentEnd),
       this.inactivity(businessId, observationStart, period.currentEnd),
       this.sharedOrders(businessId, period.currentStart, period.currentEnd),
@@ -85,7 +85,7 @@ export class CustomerIntelligenceService {
     };
   }
 
-  private cohorts(businessId: number, start: Date, end: Date): Promise<CohortRow[]> {
+  private cohorts(businessId: number, observationStart: Date, start: Date, end: Date): Promise<CohortRow[]> {
     return AppDataSource.query(`
       SELECT classified.cohort,
              COUNT(DISTINCT classified.user_id) customers,
@@ -100,6 +100,7 @@ export class CustomerIntelligenceService {
           SELECT user_id, MIN(created_at) first_completed_at
           FROM orders
           WHERE business_id = ? AND status = 'completed' AND user_id IS NOT NULL
+            AND created_at BETWEEN ? AND ?
           GROUP BY user_id
         ) first_purchase ON first_purchase.user_id = o.user_id
         WHERE o.business_id = ?
@@ -108,7 +109,7 @@ export class CustomerIntelligenceService {
           AND o.created_at BETWEEN ? AND ?
       ) classified
       GROUP BY classified.cohort
-    `, [start, businessId, businessId, start, end]);
+    `, [start, businessId, observationStart, end, businessId, start, end]);
   }
 
   private lifecycle(businessId: number, start: Date, end: Date) {
