@@ -1,10 +1,23 @@
 import { NextFunction, Request, Response } from "express";
 import { AdminService } from "../services/AdminService";
+import { AdminDashboardService } from "../services/AdminDashboardService";
 import { BusinessPlanImpactService } from "../services/BusinessPlanImpactService";
 
 export class AdminController {
   private readonly service = new AdminService();
+  private readonly dashboardService = new AdminDashboardService();
   private readonly planImpact = new BusinessPlanImpactService();
+
+  dashboard = async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({
+        success: true,
+        data: await this.dashboardService.getDashboard(),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 
   searchBusinesses = async (req: Request, res: Response, next: NextFunction) => {
     try {
