@@ -13,6 +13,8 @@ import { ReviewComments } from "./ReviewComments";
 import { Tables } from "./Tables";
 import { BusinessSchedule } from "./BusinessSchedule";
 
+export type BusinessPlatformStatus = "active" | "suspended";
+
 @Entity("business", { schema: "qscome" })
 export class Business {
   @PrimaryGeneratedColumn({ type: "int", name: "business_id" })
@@ -65,6 +67,19 @@ export class Business {
 
   @Column("datetime", { name: "verified_at", nullable: true })
   verifiedAt!: Date | null;
+
+  @Column("enum", {
+    name: "platform_status",
+    enum: ["active", "suspended"],
+    default: () => "'active'",
+  })
+  platformStatus!: BusinessPlatformStatus;
+
+  @Column("datetime", { name: "suspended_at", nullable: true })
+  suspendedAt!: Date | null;
+
+  @Column("text", { name: "suspension_reason", nullable: true })
+  suspensionReason!: string | null;
 
   @OneToMany(() => BusinessDeliverySettings, (row) => row.business)
   businessDeliverySettings!: BusinessDeliverySettings[];

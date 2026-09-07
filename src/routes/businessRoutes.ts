@@ -2,6 +2,7 @@ import { Router } from "express";
 import { BusinessController } from "../controllers/BusinessController";
 import { authenticate } from "../middlewares/authMiddleware";
 import { requireBusinessPermission, requireSelfOrAdmin } from "../middlewares/ownership";
+import { requireActiveBusinessParam } from "../middlewares/businessPlatform";
 import { validateDto } from "../middlewares/validateDto";
 import {
   AddBusinessPhotoDto,
@@ -51,8 +52,8 @@ router.delete("/:id/invitations/:invitationId", authenticate, requireBusinessPer
 router.patch("/:id/members/:userId", authenticate, requireBusinessPermission("team.manage", "id"), validateDto(UpdateBusinessMemberRoleDto), teamController.updateMember);
 router.delete("/:id/members/:userId", authenticate, requireBusinessPermission("team.manage", "id"), teamController.removeMember);
 router.post("/:id/ownership-transfers", authenticate, requireBusinessPermission("ownership.transfer", "id"), validateDto(TransferBusinessOwnershipDto), teamController.transfer);
-router.get("/:id/menu", businessController.getMenu);
-router.get("/:id", businessController.getById);
+router.get("/:id/menu", requireActiveBusinessParam("id"), businessController.getMenu);
+router.get("/:id", requireActiveBusinessParam("id"), businessController.getById);
 
 // Crear un negocio es una capacidad de cualquier usuario autenticado. El rol
 // global no debe impedir que un cliente se convierta también en propietario;
