@@ -2,12 +2,14 @@ import { NextFunction, Request, Response } from "express";
 import { AuthRequest } from "../middlewares/authMiddleware";
 import { AdminService } from "../services/AdminService";
 import { AdminBusinessService } from "../services/AdminBusinessService";
+import { AdminUserService } from "../services/AdminUserService";
 import { AdminDashboardService } from "../services/AdminDashboardService";
 import { BusinessPlanImpactService } from "../services/BusinessPlanImpactService";
 
 export class AdminController {
   private readonly service = new AdminService();
   private readonly businesses = new AdminBusinessService();
+  private readonly users = new AdminUserService();
   private readonly dashboardService = new AdminDashboardService();
   private readonly planImpact = new BusinessPlanImpactService();
 
@@ -74,6 +76,64 @@ export class AdminController {
       res.json({
         success: true,
         message: verified ? "Negocio verificado" : "Verificación retirada",
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  searchUsers = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const limit = Number.parseInt(String(req.query.limit || "20"), 10);
+      res.json({
+        success: true,
+        data: await this.users.search(String(req.query.q || ""), limit),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  userDetail = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({
+        success: true,
+        data: await this.users.get(Number(req.params.id)),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateUserStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const data = await this.users.setStatus(
+        Number(req.params.id),
+        String(req.body.status || ""),
+        req.body.reason,
+        Number(req.user?.userId),
+      );
+      res.json({
+        success: true,
+        message: req.body.status === "blocked" ? "Usuario bloqueado" : "Usuario reactivado",
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateUserRole = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const data = await this.users.setRole(
+        Number(req.params.id),
+        String(req.body.role || ""),
+        Number(req.user?.userId),
+      );
+      res.json({
+        success: true,
+        message: "Rol global actualizado",
         data,
       });
     } catch (error) {
