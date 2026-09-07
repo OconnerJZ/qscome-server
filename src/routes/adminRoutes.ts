@@ -2,6 +2,7 @@ import { Router } from "express";
 import { AdminController } from "../controllers/AdminController";
 import { AdminFeatureControlController } from "../controllers/AdminFeatureControlController";
 import { AdminMarketingController } from "../controllers/AdminMarketingController";
+import { AdminPaymentsController } from "../controllers/AdminPaymentsController";
 import { authenticate } from "../middlewares/authMiddleware";
 import { authorize } from "../middlewares/roleMiddleware";
 import { validateDto } from "../middlewares/validateDto";
@@ -28,6 +29,7 @@ const router = Router();
 const adminController = new AdminController();
 const featureController = new AdminFeatureControlController();
 const marketingController = new AdminMarketingController();
+const paymentsController = new AdminPaymentsController();
 const adminOnly = [authenticate, authorize("admin")] as const;
 
 router.get("/dashboard", ...adminOnly, adminController.dashboard);
@@ -91,6 +93,10 @@ router.patch(
   validateDto(AdminMarketingInterventionDto),
   marketingController.setAdStatus,
 );
+
+router.get("/payments/summary", ...adminOnly, paymentsController.summary);
+router.get("/payments/transfers", ...adminOnly, paymentsController.transfers);
+router.get("/payments/transfers/:orderId", ...adminOnly, paymentsController.detail);
 
 router.get("/businesses", ...adminOnly, adminController.searchBusinesses);
 router.get("/businesses/:id", ...adminOnly, adminController.businessDetail);
