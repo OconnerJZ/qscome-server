@@ -33,7 +33,7 @@
 | Business gallery photos | 4 | 8 | 15 | 25 |
 | Analytics history days | 30 | 90 | 365 | 730 |
 
-Team usage counts active business memberships, including the primary owner, plus non-expired pending membership invitations. Ownership-transfer invitations are not commercial team-seat additions.
+Team usage counts active business memberships, including the primary owner, plus non-expired pending membership invitations. Ownership-transfer invitations are not commercial team-seat additions. A transfer that retains the previous owner as co-owner validates the real additional seat before acceptance.
 
 ### Commercial value matrix
 
@@ -49,10 +49,10 @@ Available value:
 
 - Reputation Insights
 - Loyalty Management
+- Marketing Center for aggregate `all` campaigns
 
 Planned value:
 
-- Marketing Center
 - benefits for the separate qsCome Ads product (credits/conditions), never guaranteed organic ranking
 - increased operational scale
 
@@ -63,11 +63,11 @@ Inherits LEVEL 1.
 Available value:
 
 - Customer Intelligence: aggregate new/returning cohorts, repeat behavior, inactivity and Shared Order impact
+- Customer Segments for Marketing audiences
 
 Planned value:
 
 - advanced analytics
-- customer segments
 - advanced exports
 - advanced marketing
 - increased scale/history
@@ -83,11 +83,10 @@ Inherits LEVEL 2 and adds planned value:
 
 ### Advertising product — separate from subscription
 
-Potential surfaces:
+Foundation surfaces:
 
 - sponsored Explore listings
-- sponsored category/search positions
-- optional hero campaigns
+- optional Hero campaigns represented in the Ads domain
 
 Requirements:
 
@@ -95,7 +94,9 @@ Requirements:
 - relevance still matters
 - owner controls budget and pause/stop
 - organic ranking cannot be bought
-- campaign reporting should connect spend to orders/revenue when possible
+- campaign reporting should connect spend to orders/revenue when real serving/attribution is implemented
+
+Current foundation intentionally does not enable billing, approval-to-active transitions, real serving, attribution or fabricated performance counters.
 
 ## Plan positioning
 
@@ -122,11 +123,12 @@ Each business has exactly one `business_plan_subscriptions` row.
 Plan changes are non-destructive.
 
 - upgrades apply immediately to the base plan and cancel an active trial to avoid ambiguous state
-- downgrades never delete or archive existing products, team members or photos
+- downgrades never delete or archive existing products, team members, photos, loyalty state or marketing campaign configuration
 - if a lower plan is below current usage, existing resources remain usable
 - only new resource creation in the exceeded category is blocked while usage remains at/above the limit
 - reducing/deleting resources can bring the business back under the limit
 - order volume, realtime traffic, customers, Shared Orders and reviews are never blocked by downgrade
+- premium campaign configuration is preserved, but actions that require a lost entitlement cannot be reactivated until the business regains that entitlement
 - the admin impact preview shows overages before assignment
 - analytics history restricts the requested date window, not order volume or report availability itself
 
@@ -134,7 +136,8 @@ Plan changes are non-destructive.
 
 - product creation is serialized per business before counting and inserting
 - gallery-photo creation is serialized per business before counting and inserting
-- membership invitation creation is serialized per business and counts active members plus pending invitations
+- membership invitation creation is serialized per business and counts active members plus pending membership invitations
+- ownership-transfer invitations do not reserve commercial seats; retaining the previous owner as co-owner validates the actual membership delta under the same business lock
 - editing/removing existing resources remains allowed when usage is above a downgraded limit
 - owner plan UI shows progressive usage guidance at 80%, 90% and 100%
 - 100% blocks only new additions in that scale category
@@ -197,6 +200,7 @@ Loyalty participation is customer-core/free. Program management is a Level 1+ bu
 - redemption locks the customer loyalty account, consumes exactly one available reward and writes `reward_redeemed`
 - the order stores immutable reward snapshot fields: subtotal before discount, percent, discount amount and final total
 - concurrent attempts to consume the same last reward cannot both succeed
+- order status transitions are serialized so acceptance/cancellation/completion cannot race against each other from the same prior state
 - cancelling an order with a consumed reward restores exactly one reward and writes `reward_restored`
 - completion earning uses the pre-discount subtotal for minimum-order eligibility
 
@@ -206,7 +210,7 @@ Customer Intelligence is a Level 2+ commercial capability layered on top of core
 
 - private business endpoint guarded by `reports.read` plus the `customer.intelligence` plan entitlement
 - requested periods remain constrained by the effective plan analytics-history allowance
-- new vs returning customers are calculated from completed orders
+- new vs returning customers are calculated from completed orders inside the observable analytics-history window
 - average ticket, order count and revenue are compared by new/returning cohort
 - observed frequency buckets show 1, 2–3, 4–7 and 8+ completed orders inside the observable history window
 - inactivity bands show 0–30, 31–60, 61–90 and 90+ days since the last completed order inside the observable history window
@@ -216,7 +220,41 @@ Customer Intelligence is a Level 2+ commercial capability layered on top of core
 - signals are deterministic and explainable; no predictive churn score or opaque customer scoring is introduced
 - responses are aggregate-only and do not expose customer names, emails, phones or internal IDs
 - frequency/inactivity wording deliberately says “observed” because plan history limits may hide older activity
-- individual customer profiles, contact exports and campaign audiences remain out of scope until the segmentation/marketing privacy model is implemented
+- individual customer profiles and contact exports remain out of scope; aggregate customer segments are implemented only inside the Marketing privacy boundary
+
+## Marketing & qsCome Ads domain
+
+B6 intentionally separates business-owned Marketing from the optional qsCome Ads product.
+
+### Marketing Center
+
+- `marketing.center` is available from Level 1+
+- `marketing.manage` is business-scoped for primary owner, co-owner and manager
+- campaigns store objective, message, audience, dates and lifecycle status
+- Level 1 can manage campaigns for the aggregate `all` audience
+- behavioral audiences require `customer.segments`, available from Level 2+
+- a downgrade preserves campaign configuration but blocks scheduling/reactivating a segmented campaign without the required entitlement
+- campaign lifecycle is planning/management only; direct email/SMS/push delivery is not implemented
+- no raw customer identity/contact export is exposed
+
+### Customer Segments
+
+- aggregate audiences are derived from completed orders inside the effective analytics-history window
+- supported foundation audiences: all, new/one observed purchase, returning, frequent and inactive 90+
+- API returns aggregate counts only
+
+### qsCome Ads
+
+- independent from FREE / Level 1 / Level 2 / Level 3 subscription entitlement
+- owner can create draft campaigns with Explore/Hero surface, budget, radius and schedule
+- submit moves Ads to `pending_billing`
+- owner has no endpoint to activate an Ad
+- billing, approval/moderation, serving, attribution and anti-fraud accounting remain deferred
+- sponsored Explore results are rendered in a separate clearly labeled section and never alter organic ranking
+- counters are stored for the future serving domain but this foundation never fabricates spend, impressions or clicks
+- plan Ads benefits/credits remain `coming_soon`
+
+See `docs/b6-marketing-ads.md` for the focused B6 boundary and deferred work.
 
 ## Delivery blocks
 
@@ -304,7 +342,7 @@ Customer Intelligence is a Level 2+ commercial capability layered on top of core
 
 - [x] activate `customer.intelligence` from Level 2+
 - [x] preserve basic customer KPIs as core analytics
-- [x] new vs returning customer cohorts
+- [x] new vs returning customer cohorts inside observable plan history
 - [x] repeat/frequency analysis within observable plan history
 - [x] average ticket and revenue by cohort
 - [x] inactivity bands without exposing customer identities
@@ -314,16 +352,33 @@ Customer Intelligence is a Level 2+ commercial capability layered on top of core
 - [x] aggregate-only API with no customer contact details or IDs
 - [x] owner Customer Intelligence panel with Level 2 gate
 
-Customer segments, individual outreach lists and contact exports remain future capabilities and require the Marketing/segmentation privacy model rather than being smuggled into B5.
+### B6 — Marketing & qsCome Ads — foundation complete
 
-### B6 — Marketing & qsCome Ads
+- [x] Marketing Center entitlement from Level 1+
+- [x] business-scoped campaign management
+- [x] campaign objectives, message, audience, schedule and lifecycle
+- [x] aggregate customer segments from Level 2+
+- [x] downgrade-safe segmented campaign activation
+- [x] qsCome Ads domain independent from subscription tier
+- [x] Explore/Hero ad surfaces represented
+- [x] budget/radius/schedule controls
+- [x] owner submit to `pending_billing` only
+- [x] public sponsored feed separated from organic results
+- [x] clearly labeled sponsored Explore section
+- [x] factual counter persistence without fabricated serving data
+- [x] billing/serving explicitly disabled instead of simulated
 
-- [ ] Marketing Center
-- [ ] campaigns/promotions
-- [ ] customer segments
-- [ ] sponsored listings
-- [ ] optional hero campaigns
-- [ ] budget controls and performance reporting
+Deferred intentionally:
+
+- billing/payment provider and Ads economics
+- moderation/approval and transition to active serving
+- impression/click anti-fraud accounting
+- conversion attribution / ROAS
+- direct email/SMS/push delivery
+- raw contact exports
+- advanced segment builder
+- Ads plan credits/discounts
+- automations
 
 ### B7 — Minimal Admin plan controls
 
@@ -337,4 +392,4 @@ Customer segments, individual outreach lists and contact exports remain future c
 - [x] preview commercial impact before plan assignment
 - [x] keep plan mutations protected by backend admin authorization
 
-The full Admin Control Center remains a later phase.
+The full Admin Control Center remains a later phase. Its future backlog includes a Feature Control Center with audited global/plan/business runtime controls for selected non-core features; security, authorization, pricing integrity and core data consistency must never become admin-switchable feature flags.
