@@ -21,6 +21,8 @@ import { UserSessions } from "./UserSessions";
 import { UserWallets } from "./UserWallets";
 import { Votes } from "./Votes";
 
+export type UserAccountStatus = "active" | "blocked";
+
 @Index("fk_users_role", ["roleId"], {})
 @Entity("users", { schema: "qscome" })
 export class Users {
@@ -68,6 +70,19 @@ export class Users {
 
   @Column("varchar", { name: "avatar_url", nullable: true, length: 255 })
   avatarUrl!: string | null;
+
+  @Column("enum", {
+    name: "account_status",
+    enum: ["active", "blocked"],
+    default: () => "'active'",
+  })
+  accountStatus!: UserAccountStatus;
+
+  @Column("datetime", { name: "blocked_at", nullable: true })
+  blockedAt!: Date | null;
+
+  @Column("text", { name: "block_reason", nullable: true })
+  blockReason!: string | null;
 
   @Column("int", { name: "role_id", nullable: true })
   roleId!: number | null;
