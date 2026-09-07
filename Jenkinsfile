@@ -13,9 +13,6 @@ pipeline {
         BACKEND_CONTAINER = 'qscome-backend'
         DOCKER_COMPOSE = 'docker compose'
         PUBLIC_API_URL = 'https://api.qscome.com.mx'
-        DEPLOYMENT_STARTED = 'false'
-        ROLLBACK_IMAGE_NAME = ''
-        BACKEND_IMAGE_NAME = ''
     }
 
     stages {
@@ -57,20 +54,20 @@ pipeline {
         stage('✅ Quality Gate') {
             steps {
                 sh '''
-            docker run --rm \
-                -e HOME=/tmp \
-                -e npm_config_cache=/tmp/.npm \
-                -v "$WORKSPACE:/workspace:ro" \
-                -w /tmp \
-                node:22 \
-                sh -ec '
-                    cp -a /workspace/. /tmp/app
-                    cd /tmp/app
-                    npm ci
-                    npm run quality
-                    npm audit --omit=dev --audit-level=high
-                '
-        '''
+                    docker run --rm \
+                        -e HOME=/tmp \
+                        -e npm_config_cache=/tmp/.npm \
+                        -v "$WORKSPACE:/workspace:ro" \
+                        -w /tmp \
+                        node:22 \
+                        sh -ec '
+                            cp -a /workspace/. /tmp/app
+                            cd /tmp/app
+                            npm ci
+                            npm run quality
+                            npm audit --omit=dev --audit-level=high
+                        '
+                '''
             }
         }
 
@@ -85,21 +82,18 @@ pipeline {
                     ) == 0
 
                     if (containerExists) {
-                        env.BACKEND_IMAGE_NAME = sh(
+                        def backendImageName = sh(
                             script: "docker inspect --format='{{.Config.Image}}' '${BACKEND_CONTAINER}'",
                             returnStdout: true
                         ).trim()
 
-                        env.ROLLBACK_IMAGE_NAME =
-                            "${env.BACKEND_CONTAINER}-rollback:${env.BUILD_NUMBER}"
-
-                        env.CURRENT_IMAGE_ID = sh(
+                        def currentImageId = sh(
                             script: "docker inspect --format='{{.Image}}' '${BACKEND_CONTAINER}'",
                             returnStdout: true
                         ).trim()
 
                         def currentImageExists = sh(
-                            script: "docker image inspect '${env.CURRENT_IMAGE_ID}' > /dev/null 2>&1",
+                            script: "docker image inspect '${currentImageId}' > /dev/null 2>&1",
                             returnStatus: true
                         ) == 0
 
@@ -109,17 +103,17 @@ pipeline {
                             sh '''
                                 cd "$PROJECT_DIR"
                                 $DOCKER_COMPOSE build --no-cache backend
-                                docker image inspect "$BACKEND_IMAGE_NAME" > /dev/null
                             '''
 
-                            env.CURRENT_IMAGE_ID = sh(
-                                script: "docker image inspect --format='{{.Id}}' '${env.BACKEND_IMAGE_NAME}'",
+                            currentImageId = sh(
+                                script: "docker image inspect --format='{{.Id}}' '${backendImageName}'",
                                 returnStdout: true
                             ).trim()
                         }
 
-                        sh "docker tag '${env.CURRENT_IMAGE_ID}' '${env.ROLLBACK_IMAGE_NAME}'"
-                        echo "Imagen de rollback preparada: ${env.ROLLBACK_IMAGE_NAME}"
+                        def rollbackImageName = "${BACKEND_CONTAINER}-rollback:${BUILD_NUMBER}"
+                        sh "docker tag '${currentImageId}' '${rollbackImageName}'"
+                        echo "Imagen de rollback preparada: ${rollbackImageName}"
                     } else {
                         echo 'Primer despliegue: no existe una versión anterior de la aplicación.'
                     }
@@ -177,17 +171,15 @@ pipeline {
 
         stage('🛑 Stop Container') {
             steps {
-                script {
-                    env.DEPLOYMENT_STARTED = 'true'
+                sh '''
+                    touch "$WORKSPACE/.deployment-started"
 
-                    sh '''
-                        cd "$PROJECT_DIR"
+                    cd "$PROJECT_DIR"
 
-                        if [ -n "$($DOCKER_COMPOSE ps -q backend)" ]; then
-                            $DOCKER_COMPOSE stop backend
-                        fi
-                    '''
-                }
+                    if [ -n "$($DOCKER_COMPOSE ps -q backend)" ]; then
+                        $DOCKER_COMPOSE stop backend
+                    fi
+                '''
             }
         }
 
@@ -355,23 +347,37 @@ pipeline {
             echo '❌ DEPLOYMENT FALLÓ'
 
             script {
-                if (env.DEPLOYMENT_STARTED != 'true') {
+                def deploymentStarted = sh(
+                    script: 'test -f "$WORKSPACE/.deployment-started"',
+                    returnStatus: true
+                ) == 0
+
+                if (!deploymentStarted) {
                     echo 'La versión activa no fue detenida; no se requiere rollback.'
-                } else if (
-                    !env.ROLLBACK_IMAGE_NAME?.trim()
-                    || !env.BACKEND_IMAGE_NAME?.trim()
-                ) {
-                    echo '🚨 No existe una imagen anterior para rollback; se requiere intervención manual.'
                 } else {
                     try {
                         sh '''
+                            set -eu
+
                             cd "$PROJECT_DIR"
 
-                            $DOCKER_COMPOSE stop backend || true
+                            ROLLBACK_IMAGE_NAME="$BACKEND_CONTAINER-rollback:$BUILD_NUMBER"
 
-                            docker image inspect \
-                                "$ROLLBACK_IMAGE_NAME" \
-                                > /dev/null
+                            if ! docker image inspect "$ROLLBACK_IMAGE_NAME" > /dev/null 2>&1; then
+                                echo "🚨 No existe la imagen de rollback esperada: $ROLLBACK_IMAGE_NAME" >&2
+                                exit 1
+                            fi
+
+                            BACKEND_IMAGE_NAME=$(docker inspect \
+                                --format='{{.Config.Image}}' \
+                                "$BACKEND_CONTAINER" 2>/dev/null || true)
+
+                            if [ -z "$BACKEND_IMAGE_NAME" ]; then
+                                echo '🚨 No se pudo resolver el nombre de imagen del backend para rollback.' >&2
+                                exit 1
+                            fi
+
+                            $DOCKER_COMPOSE stop backend || true
 
                             docker tag \
                                 "$ROLLBACK_IMAGE_NAME" \

@@ -42,6 +42,7 @@ if [[ -n "${db_container}" ]]; then
       --user="$username" \
       --single-transaction \
       --quick \
+      --no-tablespaces \
       --routines \
       --triggers \
       "$database"

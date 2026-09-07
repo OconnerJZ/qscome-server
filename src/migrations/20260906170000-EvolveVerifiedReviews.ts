@@ -6,8 +6,122 @@ import {
   TableIndex,
 } from "typeorm";
 
+const LEGACY_REVIEW_DEPENDENCIES = [
+  {
+    tableName: "review_details",
+    columnName: "comment_id",
+    foreignKeyName: "review_details_ibfk_1",
+  },
+  {
+    tableName: "votes",
+    columnName: "comment_id",
+    foreignKeyName: "votes_ibfk_1",
+  },
+] as const;
+
 export class EvolveVerifiedReviews20260906170000 implements MigrationInterface {
   name = "EvolveVerifiedReviews20260906170000";
+
+  private async suspendLegacyReviewForeignKeys(
+    queryRunner: QueryRunner,
+  ): Promise<Array<{ tableName: string; foreignKey: TableForeignKey }>> {
+    const suspended: Array<{ tableName: string; foreignKey: TableForeignKey }> = [];
+
+    for (const dependency of LEGACY_REVIEW_DEPENDENCIES) {
+      if (!(await queryRunner.hasTable(dependency.tableName))) continue;
+
+      const table = await queryRunner.getTable(dependency.tableName);
+      if (!table) continue;
+
+      for (const foreignKey of table.foreignKeys.filter(
+        (fk) =>
+          fk.referencedTableName === "review_comments" &&
+          fk.columnNames.includes(dependency.columnName) &&
+          fk.referencedColumnNames.includes("comment_id"),
+      )) {
+        suspended.push({ tableName: dependency.tableName, foreignKey });
+        await queryRunner.dropForeignKey(dependency.tableName, foreignKey);
+      }
+    }
+
+    return suspended;
+  }
+
+  private async restoreSuspendedForeignKeys(
+    queryRunner: QueryRunner,
+    suspended: Array<{ tableName: string; foreignKey: TableForeignKey }>,
+  ): Promise<void> {
+    for (const { tableName, foreignKey } of suspended) {
+      if (!(await queryRunner.hasTable(tableName))) continue;
+      const table = await queryRunner.getTable(tableName);
+      if (!table) continue;
+
+      if (foreignKey.name && table.foreignKeys.some((fk) => fk.name === foreignKey.name)) {
+        continue;
+      }
+
+      await queryRunner.createForeignKey(tableName, foreignKey);
+    }
+  }
+
+  private async ensureLegacyReviewForeignKeys(queryRunner: QueryRunner): Promise<void> {
+    for (const dependency of LEGACY_REVIEW_DEPENDENCIES) {
+      if (!(await queryRunner.hasTable(dependency.tableName))) continue;
+      if (!(await queryRunner.hasColumn(dependency.tableName, dependency.columnName))) continue;
+
+      const table = await queryRunner.getTable(dependency.tableName);
+      if (!table) continue;
+
+      const alreadyReferencesReview = table.foreignKeys.some(
+        (fk) =>
+          fk.referencedTableName === "review_comments" &&
+          fk.columnNames.includes(dependency.columnName) &&
+          fk.referencedColumnNames.includes("comment_id"),
+      );
+      if (alreadyReferencesReview) continue;
+
+      await queryRunner.createForeignKey(
+        dependency.tableName,
+        new TableForeignKey({
+          name: dependency.foreignKeyName,
+          columnNames: [dependency.columnName],
+          referencedTableName: "review_comments",
+          referencedColumnNames: ["comment_id"],
+        }),
+      );
+    }
+  }
+
+  private async setCommentIdAutoIncrement(
+    queryRunner: QueryRunner,
+    enabled: boolean,
+  ): Promise<void> {
+    const table = await queryRunner.getTable("review_comments");
+    const commentId = table?.findColumnByName("comment_id");
+    if (!commentId) return;
+
+    const isAutoIncrement = commentId.isGenerated && commentId.generationStrategy === "increment";
+    if (isAutoIncrement === enabled) {
+      await this.ensureLegacyReviewForeignKeys(queryRunner);
+      return;
+    }
+
+    const suspended = await this.suspendLegacyReviewForeignKeys(queryRunner);
+
+    try {
+      await queryRunner.query(
+        `ALTER TABLE review_comments MODIFY comment_id INT NOT NULL${enabled ? " AUTO_INCREMENT" : ""}`,
+      );
+    } finally {
+      // MariaDB DDL can implicitly commit, so restoring the legacy relationships
+      // is best-effort even when the ALTER itself throws.
+      await this.restoreSuspendedForeignKeys(queryRunner, suspended);
+    }
+
+    // Also heals a prior partially applied migration where the ALTER succeeded
+    // but the process stopped before every legacy FK was recreated.
+    await this.ensureLegacyReviewForeignKeys(queryRunner);
+  }
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const tableName = "review_comments";
@@ -19,9 +133,7 @@ export class EvolveVerifiedReviews20260906170000 implements MigrationInterface {
       }
     };
 
-    await queryRunner.query(
-      `ALTER TABLE review_comments MODIFY comment_id INT NOT NULL AUTO_INCREMENT`,
-    );
+    await this.setCommentIdAutoIncrement(queryRunner, true);
 
     await ensureColumn(new TableColumn({ name: "order_id", type: "int", isNullable: true }));
     await ensureColumn(new TableColumn({ name: "rating", type: "tinyint", isNullable: true }));
@@ -33,7 +145,7 @@ export class EvolveVerifiedReviews20260906170000 implements MigrationInterface {
     await ensureColumn(new TableColumn({ name: "owner_response_by", type: "int", isNullable: true }));
     await ensureColumn(new TableColumn({ name: "owner_responded_at", type: "datetime", isNullable: true }));
 
-    const table = await queryRunner.getTable(tableName);
+    let table = await queryRunner.getTable(tableName);
     if (!table) return;
 
     if (!table.indices.some((index) => index.name === "uq_review_order")) {
@@ -52,10 +164,10 @@ export class EvolveVerifiedReviews20260906170000 implements MigrationInterface {
       );
     }
 
-    const refreshed = await queryRunner.getTable(tableName);
-    if (!refreshed) return;
+    table = await queryRunner.getTable(tableName);
+    if (!table) return;
 
-    if (!refreshed.foreignKeys.some((fk) => fk.name === "fk_review_order")) {
+    if (!table.foreignKeys.some((fk) => fk.name === "fk_review_order")) {
       await queryRunner.createForeignKey(
         tableName,
         new TableForeignKey({
@@ -68,7 +180,7 @@ export class EvolveVerifiedReviews20260906170000 implements MigrationInterface {
         }),
       );
     }
-    if (!refreshed.foreignKeys.some((fk) => fk.name === "fk_review_owner_response_by")) {
+    if (!table.foreignKeys.some((fk) => fk.name === "fk_review_owner_response_by")) {
       await queryRunner.createForeignKey(
         tableName,
         new TableForeignKey({
@@ -117,8 +229,6 @@ export class EvolveVerifiedReviews20260906170000 implements MigrationInterface {
       }
     }
 
-    await queryRunner.query(
-      `ALTER TABLE review_comments MODIFY comment_id INT NOT NULL`,
-    );
+    await this.setCommentIdAutoIncrement(queryRunner, false);
   }
 }
