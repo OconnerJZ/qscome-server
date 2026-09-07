@@ -395,7 +395,7 @@ export class BusinessPlanService {
         [businessId],
       ),
       AppDataSource.query(
-        `SELECT COUNT(*) value FROM business_invitations WHERE business_id = ? AND status = 'pending' AND expires_at > NOW()`,
+        `SELECT COUNT(*) value FROM business_invitations WHERE business_id = ? AND invitation_type = 'membership' AND status = 'pending' AND expires_at > NOW()`,
         [businessId],
       ),
       AppDataSource.query(
