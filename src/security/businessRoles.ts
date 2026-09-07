@@ -14,6 +14,9 @@ export type BusinessPermission =
   | "kitchen.update"
   | "payments.review"
   | "reports.read"
+  | "reviews.manage"
+  | "loyalty.manage"
+  | "marketing.manage"
   | "settings.update"
   | "menu.manage"
   | "team.manage"
@@ -21,14 +24,14 @@ export type BusinessPermission =
 
 const ALL_PERMISSIONS: BusinessPermission[] = [
   "orders.read", "orders.accept", "kitchen.read", "kitchen.update",
-  "payments.review", "reports.read", "settings.update", "menu.manage",
-  "team.manage", "ownership.transfer",
+  "payments.review", "reports.read", "reviews.manage", "loyalty.manage", "marketing.manage", "settings.update",
+  "menu.manage", "team.manage", "ownership.transfer",
 ];
 
 export const ROLE_PERMISSIONS: Readonly<Record<BusinessRole, readonly BusinessPermission[]>> = {
   primary_owner: ALL_PERMISSIONS,
   co_owner: ALL_PERMISSIONS.filter((permission) => !["team.manage", "ownership.transfer"].includes(permission)),
-  manager: ["orders.read", "orders.accept", "kitchen.read", "kitchen.update", "payments.review", "reports.read", "menu.manage"],
+  manager: ["orders.read", "orders.accept", "kitchen.read", "kitchen.update", "payments.review", "reports.read", "reviews.manage", "loyalty.manage", "marketing.manage", "menu.manage"],
   kitchen: ["orders.read", "kitchen.read", "kitchen.update"],
   cashier: ["orders.read", "orders.accept", "payments.review"],
 };

@@ -20,10 +20,8 @@ const STATUS_LABELS: Record<string, string> = {
   completed: "Completada",
   cancelled: "Cancelada",
 };
-export const getStatusLabel = (status: string): string =>
-  STATUS_LABELS[status] || status;
-export const isValidStatus = (status: string): status is OrderStatus =>
-  (ORDER_STATUSES as readonly string[]).includes(status);
+export const getStatusLabel = (status: string): string => STATUS_LABELS[status] || status;
+export const isValidStatus = (status: string): status is OrderStatus => (ORDER_STATUSES as readonly string[]).includes(status);
 
 export const formatOrder = (order: Orders) => ({
   id: order.orderId,
@@ -41,17 +39,20 @@ export const formatOrder = (order: Orders) => ({
   deliveryStatus: order.deliveryStatus,
   deliveryAddress: order.deliveryAddress,
   deliveryAddressId: order.deliveryAddressId,
-  deliveryLocation:
-    order.deliveryLatitude && order.deliveryLongitude
-      ? {
-          latitude: Number(order.deliveryLatitude),
-          longitude: Number(order.deliveryLongitude),
-          city: order.deliveryCity || "",
-          postalCode: order.deliveryPostalCode || "",
-        }
-      : null,
+  deliveryLocation: order.deliveryLatitude && order.deliveryLongitude ? {
+    latitude: Number(order.deliveryLatitude),
+    longitude: Number(order.deliveryLongitude),
+    city: order.deliveryCity || "",
+    postalCode: order.deliveryPostalCode || "",
+  } : null,
   notes: order.orderNotes,
   total: Number.parseFloat(order.total || "0"),
+  loyalty: order.loyaltyRewardApplied ? {
+    rewardApplied: true,
+    rewardPercent: Number(order.loyaltyRewardPercent || 0),
+    discountAmount: Number.parseFloat(order.loyaltyDiscountAmount || "0"),
+    subtotalBeforeDiscount: Number.parseFloat(order.loyaltySubtotalBeforeDiscount || order.total || "0"),
+  } : null,
   items: order.orderDetails?.map((d) => {
     const quantity = Number(d.quantity || 0);
     const subtotal = Number.parseFloat(d.subtotal || "0");

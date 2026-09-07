@@ -16,7 +16,7 @@ export class ReviewRepository implements ReviewReader {
   findByBusiness(businessId: number) {
     return this.repository.find({
       where: { businessId },
-      relations: ["user", "reviewDetails"],
+      relations: ["user", "reviewDetails", "ownerResponder"],
       order: {
         commentDate: "DESC",
         commentId: "DESC",

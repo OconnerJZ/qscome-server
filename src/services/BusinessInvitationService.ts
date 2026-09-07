@@ -62,40 +62,57 @@ export class BusinessInvitationService {
     if (!BUSINESS_ROLES.includes(input.role)) throw new HttpError(400, "Rol de negocio inválido");
     if (input.type === "membership" && !MEMBER_ROLES.includes(input.role)) throw new HttpError(400, "No puedes invitar otro propietario principal");
 
-    if (input.type === "membership") {
-      const [members, pending] = await Promise.all([
-        this.memberships.count({ where: { businessId } }),
-        this.invitations.count({ where: { businessId, status: "pending", expiresAt: MoreThan(new Date()) } }),
-      ]);
-      await this.plans.assertWithinLimit(businessId, "teamMembers", members + pending);
-    }
-
-    const [business, existingUser] = await Promise.all([
-      AppDataSource.getRepository(Business).findOne({ where: { businessId } }),
-      AppDataSource.getRepository(Users).findOne({ where: { email } }),
-    ]);
-    if (!business) throw new HttpError(404, "Negocio no encontrado");
-    if (input.type === "membership" && existingUser && await this.memberships.findOne({ where: { businessId, userId: existingUser.userId } })) {
-      throw new HttpError(409, "Este usuario ya pertenece al negocio");
-    }
-
-    await this.invitations.createQueryBuilder().update().set({ status: "cancelled" })
-      .where("business_id = :businessId AND invited_email = :email AND status = 'pending'", { businessId, email }).execute();
     const secret = createInvitationSecrets();
-    const invitation = await this.invitations.save(this.invitations.create({
-      businessId,
-      invitedEmail: email,
-      roleInBusiness: input.role,
-      invitationType: input.type,
-      status: "pending",
-      tokenHash: hashInvitationToken(secret.token),
-      codeHash: hashInvitationCode(secret.code),
-      invitedBy: actorUserId,
-      acceptedBy: null,
-      retainPreviousAsCoOwner: input.retainPreviousAsCoOwner !== false,
-      expiresAt: createInvitationExpiry(),
-      acceptedAt: null,
-    }));
+    const invitation = await AppDataSource.transaction(async (manager) => {
+      // The business row is the serialization point for team-seat allocation.
+      // This prevents simultaneous invitations from overshooting the same plan limit.
+      await manager.query("SELECT business_id FROM business WHERE business_id = ? FOR UPDATE", [businessId]);
+
+      const business = await manager.getRepository(Business).findOne({ where: { businessId } });
+      if (!business) throw new HttpError(404, "Negocio no encontrado");
+
+      const invitationRepo = manager.getRepository(BusinessInvitations);
+      const membershipRepo = manager.getRepository(BusinessOwners);
+      const existingUser = await manager.getRepository(Users).findOne({ where: { email } });
+
+      if (input.type === "membership") {
+        if (existingUser && await membershipRepo.findOne({ where: { businessId, userId: existingUser.userId } })) {
+          throw new HttpError(409, "Este usuario ya pertenece al negocio");
+        }
+
+        const [members, pending] = await Promise.all([
+          membershipRepo.count({ where: { businessId } }),
+          invitationRepo.count({
+            where: {
+              businessId,
+              invitationType: "membership",
+              status: "pending",
+              expiresAt: MoreThan(new Date()),
+            },
+          }),
+        ]);
+        await this.plans.assertWithinLimit(businessId, "teamMembers", members + pending);
+      }
+
+      await invitationRepo.createQueryBuilder().update().set({ status: "cancelled" })
+        .where("business_id = :businessId AND invited_email = :email AND status = 'pending'", { businessId, email }).execute();
+
+      return invitationRepo.save(invitationRepo.create({
+        businessId,
+        invitedEmail: email,
+        roleInBusiness: input.role,
+        invitationType: input.type,
+        status: "pending",
+        tokenHash: hashInvitationToken(secret.token),
+        codeHash: hashInvitationCode(secret.code),
+        invitedBy: actorUserId,
+        acceptedBy: null,
+        retainPreviousAsCoOwner: input.retainPreviousAsCoOwner !== false,
+        expiresAt: createInvitationExpiry(),
+        acceptedAt: null,
+      }));
+    });
+
     await this.audit.record(actorUserId, input.type === "ownership_transfer" ? "OWNERSHIP_TRANSFER_INVITED" : "BUSINESS_MEMBER_INVITED", businessId, serializeInvitation(invitation));
     const frontendUrl = (process.env.FRONTEND_URL || process.env.CORS_ORIGIN?.split(",")[0] || "http://localhost:5173").replace(/\/$/, "");
     return { ...serializeInvitation(invitation), code: secret.code, invitationUrl: `${frontendUrl}/business-invitations/${secret.token}` };
@@ -134,6 +151,11 @@ export class BusinessInvitationService {
     if (!user || normalizeInvitationEmail(user.email || "") !== invitation.invitedEmail) throw new HttpError(403, "Esta invitación corresponde a otro email");
 
     const accepted = await AppDataSource.transaction(async (manager) => {
+      // Keep the same serialization point used when reserving team seats. This
+      // matters for ownership transfers that retain the previous owner and can
+      // therefore add one real membership seat.
+      await manager.query("SELECT business_id FROM business WHERE business_id = ? FOR UPDATE", [invitation.businessId]);
+
       const locked = await manager.getRepository(BusinessInvitations).createQueryBuilder("invitation")
         .setLock("pessimistic_write")
         .where("invitation.invitation_id = :id", { id: invitation.invitationId }).getOne();
@@ -142,6 +164,31 @@ export class BusinessInvitationService {
 
       const repository = manager.getRepository(BusinessOwners);
       let target = await repository.findOne({ where: { businessId: locked.businessId, userId } });
+
+      if (locked.invitationType === "ownership_transfer") {
+        const previous = await repository.findOne({ where: { businessId: locked.businessId, userId: locked.invitedBy } });
+        const membershipDelta = (target ? 0 : 1) - (previous && !locked.retainPreviousAsCoOwner ? 1 : 0);
+        if (membershipDelta > 0) {
+          const [members, pendingMemberships] = await Promise.all([
+            repository.count({ where: { businessId: locked.businessId } }),
+            manager.getRepository(BusinessInvitations).count({
+              where: {
+                businessId: locked.businessId,
+                invitationType: "membership",
+                status: "pending",
+                expiresAt: MoreThan(new Date()),
+              },
+            }),
+          ]);
+          await this.plans.assertWithinLimit(
+            locked.businessId,
+            "teamMembers",
+            members + pendingMemberships,
+            membershipDelta,
+          );
+        }
+      }
+
       if (!target) target = repository.create({ businessId: locked.businessId, userId, roleInBusiness: locked.roleInBusiness });
       target.roleInBusiness = locked.roleInBusiness;
       await repository.save(target);

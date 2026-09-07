@@ -8,6 +8,11 @@ test("construye periodos actual y anterior sin traslaparlos", () => {
   assert.equal(period.previousEnd.getTime() + 1, period.currentStart.getTime());
 });
 
+test("respeta el máximo de historial aprobado para Nivel 3", () => {
+  assert.equal(createStatsPeriod(730, new Date("2026-08-28T12:00:00Z")).days, 730);
+  assert.equal(createStatsPeriod(999, new Date("2026-08-28T12:00:00Z")).days, 730);
+});
+
 test("calcula variaciones y proporciones sin dividir entre cero", () => {
   assert.equal(percentageChange(12, 10), 20);
   assert.equal(percentageChange(5, 0), 100);

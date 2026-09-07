@@ -2,6 +2,7 @@ import { AppDataSource } from "../utils/db";
 import { Orders } from "../entities/Orders";
 import { getStatusLabel } from "../serializers/order.serializer";
 import { HttpError } from "../utils/httpError";
+import { BusinessPlanService } from "./BusinessPlanService";
 import { StatsQueryService } from "./stats/StatsQueryService";
 import { createStatsPeriod, percentage, percentageChange } from "./stats/statsPeriod";
 
@@ -10,9 +11,20 @@ const money = (value: unknown) => Number(number(value).toFixed(2));
 
 export class StatsService {
   private readonly queries = new StatsQueryService();
+  private readonly plans = new BusinessPlanService();
 
   async getBusinessStats(businessId: number, requestedPeriod = 7) {
     if (!Number.isInteger(businessId) || businessId < 1) throw new HttpError(400, "Negocio inválido");
+
+    const capabilities = await this.plans.resolveCapabilities(businessId);
+    const historyLimit = capabilities.limits.analyticsHistoryDays;
+    if (historyLimit !== null && requestedPeriod > historyLimit) {
+      throw new HttpError(
+        409,
+        `Tu plan permite consultar hasta ${historyLimit} días de historial analítico`,
+      );
+    }
+
     const period = createStatsPeriod(requestedPeriod);
     const currentWindow = { start: period.currentStart, end: period.currentEnd };
     const previousWindow = { start: period.previousStart, end: period.previousEnd };
@@ -51,6 +63,7 @@ export class StatsService {
       ordersByStatus: statusRows.map((row: any) => ({ status: row.status, name: getStatusLabel(row.status), value: number(row.value), share: percentage(number(row.value), totalOrders) })),
       operations: { averageAcceptanceMinutes: number(operational.acceptance_minutes), averageFulfillmentMinutes: number(operational.fulfillment_minutes) },
       period: { days: period.days, startDate: period.currentStart.toISOString(), endDate: period.currentEnd.toISOString(), comparisonStartDate: period.previousStart.toISOString(), comparisonEndDate: period.previousEnd.toISOString() },
+      plan: { analyticsHistoryDays: historyLimit },
       accountingNote: "Los importes representan ventas brutas de órdenes completadas; no son utilidad y no descuentan costos, comisiones ni impuestos.",
     };
   }

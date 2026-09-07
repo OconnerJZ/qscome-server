@@ -8,12 +8,14 @@ import { BusinessOwners } from "../entities/BusinessOwners";
 import { BusinessDeliverySettings } from "../entities/BusinessDeliverySettings";
 import { BusinessPaymentMethods } from "../entities/BusinessPaymentMethods";
 import { BusinessPhotos } from "../entities/BusinessPhotos";
+import { BusinessPlanSubscription } from "../entities/BusinessPlanSubscription";
 import { Users } from "../entities/Users";
 import { UserRoles } from "../entities/UserRoles";
 import { HttpError } from "../utils/httpError";
 import { formatBusinessCard, formatOwnerBusinessCard, formatBusinessDetail, formatMenuItem } from "../serializers/business.serializer";
 import { normalizeBusinessRole, permissionsForRole } from "../security/businessAccess";
 import { assertUsableTransferConfig, normalizeTransferBankConfig } from "../security/transferPayment";
+import { BusinessPlanService } from "./BusinessPlanService";
 import {
   BusinessLocationDto,
   BusinessPaymentMethodDto,
@@ -53,6 +55,7 @@ export class BusinessService {
   private readonly bDeliveryRepo = AppDataSource.getRepository(BusinessDeliverySettings);
   private readonly bPaymentRepo = AppDataSource.getRepository(BusinessPaymentMethods);
   private readonly bPhotosRepo = AppDataSource.getRepository(BusinessPhotos);
+  private readonly plans = new BusinessPlanService();
 
   async list() { const businesses = await this.businessRepo.find({ relations: PROFILE_RELATIONS, take: 50 }); return businesses.map(formatBusinessCard); }
   async getById(businessId: number) { const business = await this.businessRepo.findOne({ where: { businessId }, relations: [...PROFILE_RELATIONS, "menus"] }); if (!business) throw new HttpError(404, "Negocio no encontrado"); return formatBusinessDetail(business); }
@@ -95,8 +98,20 @@ export class BusinessService {
     const { business_name, phone, email, logo_url, locale, schedule, has_delivery, food_type, id } = input;
     if (!id) throw new HttpError(400, "Usuario inválido");
     const businessId = await AppDataSource.transaction(async (manager) => {
-      const businessRepo = manager.getRepository(Business); const locationRepo = manager.getRepository(Locations); const scheduleRepo = manager.getRepository(BusinessSchedule); const bFoodTypesRepo = manager.getRepository(BusinessFoodTypes); const bDeliveryRepo = manager.getRepository(BusinessDeliverySettings); const bPaymentRepo = manager.getRepository(BusinessPaymentMethods); const bOwnerRepo = manager.getRepository(BusinessOwners); const userRepo = manager.getRepository(Users); const roleRepo = manager.getRepository(UserRoles);
+      const businessRepo = manager.getRepository(Business); const locationRepo = manager.getRepository(Locations); const scheduleRepo = manager.getRepository(BusinessSchedule); const bFoodTypesRepo = manager.getRepository(BusinessFoodTypes); const bDeliveryRepo = manager.getRepository(BusinessDeliverySettings); const bPaymentRepo = manager.getRepository(BusinessPaymentMethods); const bOwnerRepo = manager.getRepository(BusinessOwners); const planRepo = manager.getRepository(BusinessPlanSubscription); const userRepo = manager.getRepository(Users); const roleRepo = manager.getRepository(UserRoles);
       const business = businessRepo.create({ businessName: business_name, phone, email, logoUrl: logo_url, isOpen: true, hasDelivery: has_delivery }); await businessRepo.save(business);
+      await planRepo.save(planRepo.create({
+        businessId: business.businessId,
+        basePlanCode: "free",
+        status: "active",
+        source: "system",
+        assignedBy: null,
+        startsAt: new Date(),
+        endsAt: null,
+        trialPlanCode: null,
+        trialStartsAt: null,
+        trialEndsAt: null,
+      }));
       if (locale) await locationRepo.save(locationRepo.create({
         businessId: business.businessId,
         address: locale.address || null,
@@ -172,6 +187,16 @@ export class BusinessService {
     return this.getById(businessId);
   }
   async updateFoodTypes(businessId: number, ids: number[] = []) { await this.bFoodTypesRepo.delete({ businessId }); if (ids.length) await this.bFoodTypesRepo.save(ids.map((foodTypeId) => this.bFoodTypesRepo.create({ businessId, foodTypeId }))); return this.getById(businessId); }
-  async addPhoto(businessId: number, photoUrl: string) { if (!photoUrl) throw new HttpError(400, "photo_url requerido"); const photo = await this.bPhotosRepo.save(this.bPhotosRepo.create({ businessId, photoUrl })); return { id: photo.photoId, photoUrl: photo.photoUrl }; }
+  async addPhoto(businessId: number, photoUrl: string) {
+    if (!photoUrl) throw new HttpError(400, "photo_url requerido");
+    const photo = await AppDataSource.transaction(async (manager) => {
+      await manager.query("SELECT business_id FROM business WHERE business_id = ? FOR UPDATE", [businessId]);
+      const repo = manager.getRepository(BusinessPhotos);
+      const currentUsage = await repo.count({ where: { businessId } });
+      await this.plans.assertWithinLimit(businessId, "businessPhotos", currentUsage);
+      return repo.save(repo.create({ businessId, photoUrl }));
+    });
+    return { id: photo.photoId, photoUrl: photo.photoUrl };
+  }
   async deletePhoto(businessId: number, photoId: number) { const photo = await this.bPhotosRepo.findOne({ where: { photoId, businessId } }); if (!photo) throw new HttpError(404, "Foto no encontrada"); await this.bPhotosRepo.remove(photo); }
 }
