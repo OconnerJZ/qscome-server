@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - feature/order-kitchen-workflow
+      - feature/admin-control-center
 
 jobs:
   backend:
