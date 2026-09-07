@@ -37,6 +37,15 @@ export class AddAdModeration20260907230000 implements MigrationInterface {
       }));
     }
 
+    // Existing submitted/serving-ready campaigns predate moderation. Route them
+    // through the new queue instead of silently treating them as unsubmitted.
+    await queryRunner.query(`
+      UPDATE ad_campaigns
+      SET moderation_status = 'pending'
+      WHERE moderation_status = 'not_submitted'
+        AND status IN ('pending_billing', 'ready', 'active')
+    `);
+
     const table = await queryRunner.getTable("ad_campaigns");
     if (table && !table.indices.some((index) => index.name === "idx_ad_campaign_moderation")) {
       await queryRunner.createIndex("ad_campaigns", new TableIndex({
