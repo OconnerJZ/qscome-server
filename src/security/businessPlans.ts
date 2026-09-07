@@ -107,7 +107,7 @@ const COMMERCIAL_FEATURES: readonly CommercialFeatureDefinition[] = [
     category: "growth",
     minimumPlan: "level_1",
     commercialModel: "plan",
-    status: "coming_soon",
+    status: "available",
   },
   {
     key: "ads.planBenefits",
@@ -143,7 +143,7 @@ const COMMERCIAL_FEATURES: readonly CommercialFeatureDefinition[] = [
     category: "growth",
     minimumPlan: "level_2",
     commercialModel: "plan",
-    status: "coming_soon",
+    status: "available",
   },
   {
     key: "exports",
