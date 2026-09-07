@@ -15,6 +15,7 @@ const adminController = new AdminController();
 const planController = new BusinessPlanController();
 const adminOnly = [authenticate, authorize("admin")] as const;
 
+router.get("/dashboard", ...adminOnly, adminController.dashboard);
 router.get("/businesses", ...adminOnly, adminController.searchBusinesses);
 router.get("/businesses/:id/plan", ...adminOnly, planController.get);
 router.get("/businesses/:id/plan/impact", ...adminOnly, adminController.previewPlanImpact);
