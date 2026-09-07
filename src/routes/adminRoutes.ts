@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { AdminController } from "../controllers/AdminController";
 import { AdminFeatureControlController } from "../controllers/AdminFeatureControlController";
+import { AdminMarketingController } from "../controllers/AdminMarketingController";
 import { authenticate } from "../middlewares/authMiddleware";
 import { authorize } from "../middlewares/roleMiddleware";
 import { validateDto } from "../middlewares/validateDto";
@@ -9,6 +10,10 @@ import {
   UpdateAdminBusinessVerificationDto,
 } from "../dtos/adminBusiness.dto";
 import { UpdateFeatureControlOverrideDto } from "../dtos/adminFeatureControl.dto";
+import {
+  AdminMarketingInterventionDto,
+  ModerateAdminAdDto,
+} from "../dtos/adminMarketing.dto";
 import {
   UpdateAdminUserRoleDto,
   UpdateAdminUserStatusDto,
@@ -22,6 +27,7 @@ import {
 const router = Router();
 const adminController = new AdminController();
 const featureController = new AdminFeatureControlController();
+const marketingController = new AdminMarketingController();
 const adminOnly = [authenticate, authorize("admin")] as const;
 
 router.get("/dashboard", ...adminOnly, adminController.dashboard);
@@ -62,6 +68,28 @@ router.patch(
   ...adminOnly,
   validateDto(UpdateFeatureControlOverrideDto),
   featureController.updateBusiness,
+);
+
+router.get("/marketing/summary", ...adminOnly, marketingController.summary);
+router.get("/marketing/campaigns", ...adminOnly, marketingController.campaigns);
+router.patch(
+  "/marketing/campaigns/:campaignId/status",
+  ...adminOnly,
+  validateDto(AdminMarketingInterventionDto),
+  marketingController.setCampaignStatus,
+);
+router.get("/marketing/ads", ...adminOnly, marketingController.ads);
+router.patch(
+  "/marketing/ads/:adCampaignId/moderation",
+  ...adminOnly,
+  validateDto(ModerateAdminAdDto),
+  marketingController.moderateAd,
+);
+router.patch(
+  "/marketing/ads/:adCampaignId/status",
+  ...adminOnly,
+  validateDto(AdminMarketingInterventionDto),
+  marketingController.setAdStatus,
 );
 
 router.get("/businesses", ...adminOnly, adminController.searchBusinesses);
