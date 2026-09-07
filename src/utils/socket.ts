@@ -139,6 +139,20 @@ export const emitSharedOrderUpdated = (sessionId: string, payload: any) => {
   io.to(`shared-order:${sessionId}`).emit('shared-order:updated', payload);
 };
 
+export const disconnectUserSockets = (userId: number, reason: string) => {
+  if (!io || !Number.isInteger(userId) || userId < 1) return;
+  try {
+    const userRoom = `user:${userId}`;
+    io.to(userRoom).emit('auth:identity_changed', {
+      reason,
+      timestamp: new Date().toISOString(),
+    });
+    io.in(userRoom).disconnectSockets(true);
+  } catch (error) {
+    console.error(`No se pudieron cerrar sockets de user:${userId}`, error);
+  }
+};
+
 export const emitBusinessAccessChanged = async (
   userId: number,
   businessId: number,
