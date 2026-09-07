@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { MarketingController } from "../controllers/MarketingController";
 import { authenticate } from "../middlewares/authMiddleware";
+import { requireBusinessFeature } from "../middlewares/featureControl";
 import { requireBusinessPermission } from "../middlewares/ownership";
 
 const router = Router();
@@ -24,12 +25,14 @@ router.post(
   "/business/:businessId/campaigns",
   authenticate,
   requireBusinessPermission("marketing.manage", "businessId"),
+  requireBusinessFeature("marketing.center", "write", "businessId"),
   controller.createCampaign,
 );
 router.patch(
   "/business/:businessId/campaigns/:campaignId/status",
   authenticate,
   requireBusinessPermission("marketing.manage", "businessId"),
+  requireBusinessFeature("marketing.center", "write", "businessId"),
   controller.setCampaignStatus,
 );
 router.post(

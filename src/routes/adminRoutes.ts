@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { AdminController } from "../controllers/AdminController";
+import { AdminFeatureControlController } from "../controllers/AdminFeatureControlController";
 import { authenticate } from "../middlewares/authMiddleware";
 import { authorize } from "../middlewares/roleMiddleware";
 import { validateDto } from "../middlewares/validateDto";
@@ -7,6 +8,7 @@ import {
   UpdateAdminBusinessStatusDto,
   UpdateAdminBusinessVerificationDto,
 } from "../dtos/adminBusiness.dto";
+import { UpdateFeatureControlOverrideDto } from "../dtos/adminFeatureControl.dto";
 import {
   UpdateAdminUserRoleDto,
   UpdateAdminUserStatusDto,
@@ -19,6 +21,7 @@ import {
 
 const router = Router();
 const adminController = new AdminController();
+const featureController = new AdminFeatureControlController();
 const adminOnly = [authenticate, authorize("admin")] as const;
 
 router.get("/dashboard", ...adminOnly, adminController.dashboard);
@@ -39,6 +42,27 @@ router.patch(
 );
 
 router.get("/plans/summary", ...adminOnly, adminController.planSummary);
+
+router.get("/features", ...adminOnly, featureController.list);
+router.get("/features/businesses/:businessId", ...adminOnly, featureController.business);
+router.patch(
+  "/features/:featureKey/global",
+  ...adminOnly,
+  validateDto(UpdateFeatureControlOverrideDto),
+  featureController.updateGlobal,
+);
+router.patch(
+  "/features/:featureKey/plans/:planCode",
+  ...adminOnly,
+  validateDto(UpdateFeatureControlOverrideDto),
+  featureController.updatePlan,
+);
+router.patch(
+  "/features/:featureKey/businesses/:businessId",
+  ...adminOnly,
+  validateDto(UpdateFeatureControlOverrideDto),
+  featureController.updateBusiness,
+);
 
 router.get("/businesses", ...adminOnly, adminController.searchBusinesses);
 router.get("/businesses/:id", ...adminOnly, adminController.businessDetail);

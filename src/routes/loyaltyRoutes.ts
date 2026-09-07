@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { LoyaltyController } from "../controllers/LoyaltyController";
 import { authenticate } from "../middlewares/authMiddleware";
+import { requireBusinessFeature } from "../middlewares/featureControl";
 import { requireBusinessPermission } from "../middlewares/ownership";
 
 const router = Router();
@@ -13,6 +14,7 @@ router.put(
   "/business/:businessId/program",
   authenticate,
   requireBusinessPermission("loyalty.manage", "businessId"),
+  requireBusinessFeature("loyalty.management", "write", "businessId"),
   controller.saveProgram,
 );
 
