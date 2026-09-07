@@ -37,17 +37,19 @@ test("activa capacidades comerciales sólo desde su nivel mínimo", () => {
   const level2 = getBusinessPlanDefinition("level_2");
   const level3 = getBusinessPlanDefinition("level_3");
 
-  for (const key of ["reputation.insights", "loyalty.management"]) {
+  for (const key of ["reputation.insights", "loyalty.management", "marketing.center"]) {
     assert.equal(free.features.find((item) => item.key === key)?.included, false);
     assert.equal(level1.features.find((item) => item.key === key)?.included, true);
     assert.equal(level1.features.find((item) => item.key === key)?.status, "available");
   }
 
-  assert.equal(level1.features.find((item) => item.key === "customer.intelligence")?.included, false);
-  assert.equal(level2.features.find((item) => item.key === "customer.intelligence")?.included, true);
-  assert.equal(level2.features.find((item) => item.key === "customer.intelligence")?.status, "available");
+  for (const key of ["customer.intelligence", "customer.segments"]) {
+    assert.equal(level1.features.find((item) => item.key === key)?.included, false);
+    assert.equal(level2.features.find((item) => item.key === key)?.included, true);
+    assert.equal(level2.features.find((item) => item.key === key)?.status, "available");
+  }
 
-  for (const key of ["analytics.advanced", "customer.segments", "exports", "marketing.advanced"]) {
+  for (const key of ["analytics.advanced", "exports", "marketing.advanced"]) {
     const feature = level2.features.find((item) => item.key === key);
     assert.equal(feature?.included, true, `${key} debe pertenecer a Nivel 2+`);
     assert.equal(feature?.status, "coming_soon", `${key} no debe anunciarse como disponible todavía`);
@@ -57,7 +59,10 @@ test("activa capacidades comerciales sólo desde su nivel mínimo", () => {
   assert.equal(level3.features.find((item) => item.key === "automations")?.included, true);
   assert.equal(level3.features.find((item) => item.key === "automations")?.status, "coming_soon");
 
-  const allowedAvailablePaid = new Set(["reputation.insights", "loyalty.management", "customer.intelligence"]);
+  const allowedAvailablePaid = new Set([
+    "reputation.insights", "loyalty.management", "marketing.center",
+    "customer.intelligence", "customer.segments",
+  ]);
   for (const plan of [free, level1, level2, level3]) {
     const unexpectedAvailablePaidFeature = plan.features.find(
       (item) => item.commercialModel !== "core" && item.status === "available" && !allowedAvailablePaid.has(item.key),
@@ -66,12 +71,16 @@ test("activa capacidades comerciales sólo desde su nivel mínimo", () => {
   }
 });
 
-test("distingue beneficios publicitarios del ranking orgánico", () => {
+test("mantiene qsCome Ads separado de la suscripción y sin beneficios ficticios", () => {
+  const free = getBusinessPlanDefinition("free");
   const level1 = getBusinessPlanDefinition("level_1");
-  const adsBenefit = level1.features.find((item) => item.key === "ads.planBenefits");
-  assert.equal(adsBenefit?.included, true);
-  assert.equal(adsBenefit?.commercialModel, "separate_product");
-  assert.match(adsBenefit?.description || "", /nunca ranking orgánico garantizado/i);
+  const freeAdsBenefit = free.features.find((item) => item.key === "ads.planBenefits");
+  const paidAdsBenefit = level1.features.find((item) => item.key === "ads.planBenefits");
+  assert.equal(freeAdsBenefit?.included, false);
+  assert.equal(paidAdsBenefit?.included, true);
+  assert.equal(paidAdsBenefit?.commercialModel, "separate_product");
+  assert.equal(paidAdsBenefit?.status, "coming_soon");
+  assert.match(paidAdsBenefit?.description || "", /nunca ranking orgánico garantizado/i);
 });
 
 test("ordena planes para previews de upgrade y downgrade", () => {
