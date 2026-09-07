@@ -4,6 +4,7 @@ import { AuditLogs } from "../entities/AuditLogs";
 import { UserRoles } from "../entities/UserRoles";
 import { UserAccountStatus, Users } from "../entities/Users";
 import { normalizeBusinessRole } from "../security/businessAccess";
+import { disconnectUserSockets } from "../utils/socket";
 import { HttpError } from "../utils/httpError";
 
 export const normalizeAdminUserStatusInput = (
@@ -173,6 +174,7 @@ export class AdminUserService {
     this.assertValidUserId(userId);
     this.assertValidActor(actorUserId);
     const input = normalizeAdminUserStatusInput(rawStatus, rawReason);
+    let statusChanged = false;
 
     if (userId === actorUserId && input.status === "blocked") {
       throw new HttpError(409, "No puedes bloquear tu propia cuenta administrativa");
@@ -209,6 +211,7 @@ export class AdminUserService {
       user.blockedAt = input.status === "blocked" ? new Date() : null;
       user.blockReason = input.reason;
       await repo.save(user);
+      statusChanged = true;
 
       const auditRepo = manager.getRepository(AuditLogs);
       await auditRepo.save(auditRepo.create({
@@ -225,6 +228,10 @@ export class AdminUserService {
       }));
     });
 
+    if (statusChanged && input.status === "blocked") {
+      disconnectUserSockets(userId, "account_blocked");
+    }
+
     return this.get(userId);
   }
 
@@ -233,6 +240,7 @@ export class AdminUserService {
     this.assertValidActor(actorUserId);
     const roleName = String(rawRole || "").trim().toLowerCase();
     if (!roleName) throw new HttpError(400, "Rol global inválido");
+    let roleChanged = false;
 
     await AppDataSource.transaction(async (manager) => {
       const userRepo = manager.getRepository(Users);
@@ -265,6 +273,7 @@ export class AdminUserService {
       user.roleId = nextRole.roleId;
       user.role = nextRole;
       await userRepo.save(user);
+      roleChanged = true;
 
       const auditRepo = manager.getRepository(AuditLogs);
       await auditRepo.save(auditRepo.create({
@@ -276,6 +285,10 @@ export class AdminUserService {
         afterJson: JSON.stringify({ role: nextRole.roleName }),
       }));
     });
+
+    if (roleChanged) {
+      disconnectUserSockets(userId, "global_role_changed");
+    }
 
     return this.get(userId);
   }
