@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { AdminController } from "../controllers/AdminController";
-import { BusinessPlanController } from "../controllers/BusinessPlanController";
 import { authenticate } from "../middlewares/authMiddleware";
 import { authorize } from "../middlewares/roleMiddleware";
 import { validateDto } from "../middlewares/validateDto";
@@ -20,7 +19,6 @@ import {
 
 const router = Router();
 const adminController = new AdminController();
-const planController = new BusinessPlanController();
 const adminOnly = [authenticate, authorize("admin")] as const;
 
 router.get("/dashboard", ...adminOnly, adminController.dashboard);
@@ -40,6 +38,8 @@ router.patch(
   adminController.updateUserRole,
 );
 
+router.get("/plans/summary", ...adminOnly, adminController.planSummary);
+
 router.get("/businesses", ...adminOnly, adminController.searchBusinesses);
 router.get("/businesses/:id", ...adminOnly, adminController.businessDetail);
 router.patch(
@@ -54,26 +54,26 @@ router.patch(
   validateDto(UpdateAdminBusinessVerificationDto),
   adminController.updateBusinessVerification,
 );
-router.get("/businesses/:id/plan", ...adminOnly, planController.get);
+router.get("/businesses/:id/plan", ...adminOnly, adminController.businessPlan);
 router.get("/businesses/:id/plan/impact", ...adminOnly, adminController.previewPlanImpact);
 router.patch(
   "/businesses/:id/plan",
   ...adminOnly,
   validateDto(AssignBusinessPlanDto),
-  planController.assign,
+  adminController.assignBusinessPlan,
 );
 router.post(
   "/businesses/:id/trial",
   ...adminOnly,
   validateDto(GrantBusinessPlanTrialDto),
-  planController.grantTrial,
+  adminController.grantBusinessTrial,
 );
 router.post(
   "/businesses/:id/trial/cancel",
   ...adminOnly,
   validateDto(CancelBusinessPlanTrialDto),
-  planController.cancelTrial,
+  adminController.cancelBusinessTrial,
 );
-router.get("/businesses/:id/plan/history", ...adminOnly, planController.history);
+router.get("/businesses/:id/plan/history", ...adminOnly, adminController.businessPlanHistory);
 
 export default router;

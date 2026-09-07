@@ -4,12 +4,14 @@ import { AdminService } from "../services/AdminService";
 import { AdminBusinessService } from "../services/AdminBusinessService";
 import { AdminUserService } from "../services/AdminUserService";
 import { AdminDashboardService } from "../services/AdminDashboardService";
+import { AdminPlanService } from "../services/AdminPlanService";
 import { BusinessPlanImpactService } from "../services/BusinessPlanImpactService";
 
 export class AdminController {
   private readonly service = new AdminService();
   private readonly businesses = new AdminBusinessService();
   private readonly users = new AdminUserService();
+  private readonly plans = new AdminPlanService();
   private readonly dashboardService = new AdminDashboardService();
   private readonly planImpact = new BusinessPlanImpactService();
 
@@ -135,6 +137,89 @@ export class AdminController {
         success: true,
         message: "Rol global actualizado",
         data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  planSummary = async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({ success: true, data: await this.plans.summary() });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  businessPlan = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({ success: true, data: await this.plans.get(Number(req.params.id)) });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  assignBusinessPlan = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      res.json({
+        success: true,
+        message: "Plan base actualizado",
+        data: await this.plans.assign(
+          Number(req.params.id),
+          String(req.body.planCode || ""),
+          Number(req.user?.userId),
+          req.body.expectedVersion,
+        ),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  grantBusinessTrial = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const startsAt = req.body.startsAt ? new Date(req.body.startsAt) : undefined;
+      const data = await this.plans.grantTrial(
+        Number(req.params.id),
+        Number(req.user?.userId),
+        {
+          planCode: String(req.body.planCode || ""),
+          startsAt,
+          endsAt: new Date(req.body.endsAt),
+          expectedVersion: req.body.expectedVersion,
+        },
+      );
+      res.json({
+        success: true,
+        message: data.trial?.lifecycle === "scheduled" ? "Trial programado" : "Trial activado",
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  cancelBusinessTrial = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      res.json({
+        success: true,
+        message: "Trial cancelado",
+        data: await this.plans.cancelTrial(
+          Number(req.params.id),
+          Number(req.user?.userId),
+          req.body.expectedVersion,
+        ),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  businessPlanHistory = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json({
+        success: true,
+        data: await this.plans.history(Number(req.params.id)),
       });
     } catch (error) {
       next(error);
