@@ -17,12 +17,17 @@ test("sólo primary_owner administra equipo y transfiere propiedad", () => {
   }
 });
 
-test("owners y manager pueden gestionar reseñas sin ampliar permisos operativos de cocina/caja", () => {
-  assert.equal(hasBusinessPermission("primary_owner", "reviews.manage"), true);
-  assert.equal(hasBusinessPermission("co_owner", "reviews.manage"), true);
-  assert.equal(hasBusinessPermission("manager", "reviews.manage"), true);
-  assert.equal(hasBusinessPermission("kitchen", "reviews.manage"), false);
-  assert.equal(hasBusinessPermission("cashier", "reviews.manage"), false);
+test("owners y manager pueden gestionar reseñas, lealtad y marketing", () => {
+  for (const role of ["primary_owner", "co_owner", "manager"]) {
+    assert.equal(hasBusinessPermission(role, "reviews.manage"), true);
+    assert.equal(hasBusinessPermission(role, "loyalty.manage"), true);
+    assert.equal(hasBusinessPermission(role, "marketing.manage"), true);
+  }
+  for (const role of ["kitchen", "cashier"]) {
+    assert.equal(hasBusinessPermission(role, "reviews.manage"), false);
+    assert.equal(hasBusinessPermission(role, "loyalty.manage"), false);
+    assert.equal(hasBusinessPermission(role, "marketing.manage"), false);
+  }
 });
 
 test("cocina y caja reciben permisos operativos distintos", () => {
