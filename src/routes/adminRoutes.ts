@@ -9,6 +9,10 @@ import {
   UpdateAdminBusinessVerificationDto,
 } from "../dtos/adminBusiness.dto";
 import {
+  UpdateAdminUserRoleDto,
+  UpdateAdminUserStatusDto,
+} from "../dtos/adminUser.dto";
+import {
   AssignBusinessPlanDto,
   CancelBusinessPlanTrialDto,
   GrantBusinessPlanTrialDto,
@@ -20,6 +24,22 @@ const planController = new BusinessPlanController();
 const adminOnly = [authenticate, authorize("admin")] as const;
 
 router.get("/dashboard", ...adminOnly, adminController.dashboard);
+
+router.get("/users", ...adminOnly, adminController.searchUsers);
+router.get("/users/:id", ...adminOnly, adminController.userDetail);
+router.patch(
+  "/users/:id/status",
+  ...adminOnly,
+  validateDto(UpdateAdminUserStatusDto),
+  adminController.updateUserStatus,
+);
+router.patch(
+  "/users/:id/role",
+  ...adminOnly,
+  validateDto(UpdateAdminUserRoleDto),
+  adminController.updateUserRole,
+);
+
 router.get("/businesses", ...adminOnly, adminController.searchBusinesses);
 router.get("/businesses/:id", ...adminOnly, adminController.businessDetail);
 router.patch(
