@@ -69,6 +69,13 @@ export class MarketingService {
     if (!CAMPAIGN_STATUSES.includes(status)) throw new HttpError(400, "Estado inválido");
     const campaign = await this.campaigns.findOne({ where: { businessId, campaignId } });
     if (!campaign) throw new HttpError(404, "Campaña no encontrada");
+    if (["scheduled", "active"].includes(status) && campaign.audience !== "all") {
+      await this.requireFeature(
+        businessId,
+        "customer.segments",
+        "Esta campaña usa una audiencia segmentada y requiere Nivel 2 o superior para programarse o activarse",
+      );
+    }
     if (["scheduled", "active"].includes(status) && (!campaign.startsAt || !campaign.endsAt)) throw new HttpError(409, "La campaña necesita inicio y fin antes de programarse o activarse");
     campaign.status = status;
     return this.campaigns.save(campaign);
