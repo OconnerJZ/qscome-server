@@ -2,6 +2,7 @@ import { Router } from "express";
 import { BusinessController } from "../controllers/BusinessController";
 import { authenticate } from "../middlewares/authMiddleware";
 import { requireBusinessPermission, requireSelfOrAdmin } from "../middlewares/ownership";
+import { requireActiveBusinessParam } from "../middlewares/businessPlatform";
 import { validateDto } from "../middlewares/validateDto";
 import {
   AddBusinessPhotoDto,
@@ -36,8 +37,20 @@ router.get("/owner/:ownerId", authenticate, requireSelfOrAdmin("ownerId"), busin
 router.get("/invitations/:token", authenticate, teamController.preview);
 router.post("/invitations/:token/accept", authenticate, teamController.accept);
 router.post("/invitations/accept-code", authenticate, invitationCodeLimiter, validateDto(AcceptBusinessInvitationCodeDto), teamController.acceptCode);
-router.get("/:id/team", authenticate, requireBusinessPermission("team.manage", "id"), teamController.list);
-router.get("/:id/plan", authenticate, requireBusinessPermission("settings.update", "id"), planController.get);
+router.get(
+  "/:id/team",
+  authenticate,
+  requireBusinessPermission("team.manage", "id"),
+  requireActiveBusinessParam("id"),
+  teamController.list,
+);
+router.get(
+  "/:id/plan",
+  authenticate,
+  requireBusinessPermission("settings.update", "id"),
+  requireActiveBusinessParam("id"),
+  planController.get,
+);
 
 // Platform-admin operations. Business owners may inspect their own plan but may
 // not self-upgrade, grant trials or read internal commercial audit history.
@@ -46,13 +59,46 @@ router.post("/:id/plan/trial", authenticate, authorize("admin"), validateDto(Gra
 router.post("/:id/plan/trial/cancel", authenticate, authorize("admin"), validateDto(CancelBusinessPlanTrialDto), planController.cancelTrial);
 router.get("/:id/plan/history", authenticate, authorize("admin"), planController.history);
 
-router.post("/:id/invitations", authenticate, requireBusinessPermission("team.manage", "id"), validateDto(InviteBusinessMemberDto), teamController.invite);
-router.delete("/:id/invitations/:invitationId", authenticate, requireBusinessPermission("team.manage", "id"), teamController.cancel);
-router.patch("/:id/members/:userId", authenticate, requireBusinessPermission("team.manage", "id"), validateDto(UpdateBusinessMemberRoleDto), teamController.updateMember);
-router.delete("/:id/members/:userId", authenticate, requireBusinessPermission("team.manage", "id"), teamController.removeMember);
-router.post("/:id/ownership-transfers", authenticate, requireBusinessPermission("ownership.transfer", "id"), validateDto(TransferBusinessOwnershipDto), teamController.transfer);
-router.get("/:id/menu", businessController.getMenu);
-router.get("/:id", businessController.getById);
+router.post(
+  "/:id/invitations",
+  authenticate,
+  requireBusinessPermission("team.manage", "id"),
+  requireActiveBusinessParam("id"),
+  validateDto(InviteBusinessMemberDto),
+  teamController.invite,
+);
+router.delete(
+  "/:id/invitations/:invitationId",
+  authenticate,
+  requireBusinessPermission("team.manage", "id"),
+  requireActiveBusinessParam("id"),
+  teamController.cancel,
+);
+router.patch(
+  "/:id/members/:userId",
+  authenticate,
+  requireBusinessPermission("team.manage", "id"),
+  requireActiveBusinessParam("id"),
+  validateDto(UpdateBusinessMemberRoleDto),
+  teamController.updateMember,
+);
+router.delete(
+  "/:id/members/:userId",
+  authenticate,
+  requireBusinessPermission("team.manage", "id"),
+  requireActiveBusinessParam("id"),
+  teamController.removeMember,
+);
+router.post(
+  "/:id/ownership-transfers",
+  authenticate,
+  requireBusinessPermission("ownership.transfer", "id"),
+  requireActiveBusinessParam("id"),
+  validateDto(TransferBusinessOwnershipDto),
+  teamController.transfer,
+);
+router.get("/:id/menu", requireActiveBusinessParam("id"), businessController.getMenu);
+router.get("/:id", requireActiveBusinessParam("id"), businessController.getById);
 
 // Crear un negocio es una capacidad de cualquier usuario autenticado. El rol
 // global no debe impedir que un cliente se convierta también en propietario;
@@ -67,6 +113,7 @@ router.post(
 const ownerOnly = [
   authenticate,
   requireBusinessPermission("settings.update", "id"),
+  requireActiveBusinessParam("id"),
 ] as const;
 
 router.put("/:id", ...ownerOnly, validateDto(UpdateBusinessDto), businessController.update);

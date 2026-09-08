@@ -9,7 +9,7 @@ export class AuthIdentityService {
       where: { userId: payload.userId },
       relations: ["role"],
     });
-    if (!user) return null;
+    if (!user || user.accountStatus === "blocked") return null;
     return {
       ...payload,
       email: user.email,
@@ -17,4 +17,3 @@ export class AuthIdentityService {
     };
   }
 }
-

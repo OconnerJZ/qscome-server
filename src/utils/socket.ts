@@ -4,10 +4,12 @@ import { Server as HTTPServer } from 'node:http';
 import { corsOrigin } from './cors';
 import { getBusinessMembership } from '../security/businessAccess';
 import { AuthIdentityService } from '../services/AuthIdentityService';
+import { BusinessPlatformService } from '../services/BusinessPlatformService';
 import { getActiveSharedOrderParticipant } from '../security/sharedOrderAccess';
 
 let io: Server;
 const identityService = new AuthIdentityService();
+const businessPlatform = new BusinessPlatformService();
 
 export const initializeSocket = (httpServer: HTTPServer) => {
   io = new Server(httpServer, {
@@ -49,6 +51,13 @@ export const initializeSocket = (httpServer: HTTPServer) => {
         const isAdmin = authenticatedUser.role === 'admin';
         const access = isAdmin ? true : Boolean(await getBusinessMembership(authenticatedUser.userId, businessId));
         if (!access) return acknowledge?.({ success: false, error: 'BUSINESS_ACCESS_DENIED' });
+        if (!isAdmin) {
+          try {
+            await businessPlatform.assertActive(businessId);
+          } catch {
+            return acknowledge?.({ success: false, error: 'BUSINESS_SUSPENDED' });
+          }
+        }
 
         await socket.join(`business:${businessId}`);
         acknowledge?.({ success: true, businessId });
@@ -137,6 +146,42 @@ export const emitTransferPaymentUpdated = (businessId: number, userId: number, p
 export const emitSharedOrderUpdated = (sessionId: string, payload: any) => {
   if (!io) return;
   io.to(`shared-order:${sessionId}`).emit('shared-order:updated', payload);
+};
+
+export const disconnectUserSockets = (userId: number, reason: string) => {
+  if (!io || !Number.isInteger(userId) || userId < 1) return;
+  try {
+    const userRoom = `user:${userId}`;
+    io.to(userRoom).emit('auth:identity_changed', {
+      reason,
+      timestamp: new Date().toISOString(),
+    });
+    io.in(userRoom).disconnectSockets(true);
+  } catch (error) {
+    console.error(`No se pudieron cerrar sockets de user:${userId}`, error);
+  }
+};
+
+export const emitBusinessPlatformStatusChanged = async (
+  businessId: number,
+  status: 'active' | 'suspended',
+  reason?: string | null,
+) => {
+  if (!io || !Number.isInteger(businessId) || businessId < 1) return;
+  try {
+    const businessRoom = `business:${businessId}`;
+    io.to(businessRoom).emit('business:platform_status_changed', {
+      businessId,
+      status,
+      reason: reason || null,
+      timestamp: new Date().toISOString(),
+    });
+    if (status === 'suspended') {
+      await io.in(businessRoom).socketsLeave(businessRoom);
+    }
+  } catch (error) {
+    console.error(`No se pudo aplicar estado de plataforma a business:${businessId}`, error);
+  }
 };
 
 export const emitBusinessAccessChanged = async (

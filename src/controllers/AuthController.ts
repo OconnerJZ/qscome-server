@@ -17,7 +17,6 @@ export class AuthController {
     try {
       const { user_name, email, password, phone, isBusiness } = req.body;
 
-      // Verificar si el usuario ya existe
       const existingUser = await this.userRepo.findOne({ where: { email } });
       if (existingUser) {
         return res.status(400).json({
@@ -27,7 +26,6 @@ export class AuthController {
       }
 
       const registrationRole = getPublicRegistrationRole(isBusiness);
-      // El cliente nunca decide su rol global desde el registro público.
       const userRole = await this.roleRepo.findOne({
         where: { roleName: registrationRole },
       });
@@ -39,12 +37,18 @@ export class AuthController {
         });
       }
 
-      // Hashear contraseña
       const passwordHash = await bcrypt.hash(password, 10);
-      const user = this.userRepo.create({ userName: user_name, email, passwordHash, phone, roleId: userRole.roleId, authProvider: "local" });
+      const user = this.userRepo.create({
+        userName: user_name,
+        email,
+        passwordHash,
+        phone,
+        roleId: userRole.roleId,
+        authProvider: "local",
+        accountStatus: "active",
+      });
       await this.userRepo.save(user);
 
-      // Generar token
       const token = signAuthToken(
         { userId: user.userId, email: user.email, role: userRole.roleName },
       );
@@ -73,7 +77,6 @@ export class AuthController {
     try {
       const { email, password } = req.body;
 
-      // Buscar usuario con rol
       const user = await this.userRepo.findOne({
         where: { email },
         relations: ["role"],
@@ -86,7 +89,6 @@ export class AuthController {
         });
       }
 
-      // Verificar contraseña
       const isValidPassword = await bcrypt.compare(
         password,
         user.passwordHash || ""
@@ -98,7 +100,13 @@ export class AuthController {
         });
       }
 
-      // Generar token
+      if (user.accountStatus === "blocked") {
+        return res.status(403).json({
+          success: false,
+          message: "La cuenta está bloqueada. Contacta a soporte si necesitas una revisión.",
+        });
+      }
+
       const token = signAuthToken(
         {
           userId: user.userId,
@@ -160,13 +168,18 @@ export class AuthController {
           authProvider: "google",
           authProviderId: googleId,
           avatarUrl: picture,
+          accountStatus: "active",
         });
 
         await this.userRepo.save(user);
         user.role = userRole;
+      } else if (user.accountStatus === "blocked") {
+        return res.status(403).json({
+          success: false,
+          message: "La cuenta está bloqueada. Contacta a soporte si necesitas una revisión.",
+        });
       }
 
-      // Generar token
       const token = signAuthToken(
         {
           userId: user.userId,

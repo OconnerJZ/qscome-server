@@ -7,8 +7,9 @@ export * from "./businessRoles";
 export const getBusinessMembership = async (userId: number, businessId: number) => {
   const membership = await AppDataSource.getRepository(BusinessOwners).findOne({
     where: { userId, businessId },
+    relations: ["business"],
   });
-  if (!membership) return null;
+  if (!membership || membership.business?.platformStatus === "suspended") return null;
   const role = normalizeBusinessRole(membership.roleInBusiness);
   return { businessId, membership, role, permissions: permissionsForRole(role) };
 };

@@ -29,6 +29,9 @@ export class AdminService {
         "business.email AS businessEmail",
         "business.is_open AS isOpen",
         "business.is_verified AS isVerified",
+        "business.platform_status AS platformStatus",
+        "business.suspended_at AS suspendedAt",
+        "business.suspension_reason AS suspensionReason",
         "business.created_at AS createdAt",
         "primaryOwner.user_id AS ownerUserId",
         "primaryOwner.user_name AS ownerName",
@@ -85,6 +88,9 @@ export class AdminService {
         email: row.businessEmail || null,
         isOpen: Number(row.isOpen) === 1,
         isVerified: Number(row.isVerified) === 1,
+        platformStatus: row.platformStatus || "active",
+        suspendedAt: row.suspendedAt || null,
+        suspensionReason: row.suspensionReason || null,
         createdAt: row.createdAt || null,
         owner: row.ownerUserId
           ? {

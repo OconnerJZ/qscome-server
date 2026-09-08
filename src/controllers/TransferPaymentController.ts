@@ -44,9 +44,15 @@ export class TransferPaymentController {
   review = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const actor = (req as any).user;
+      if (actor?.role === "admin") {
+        return res.status(403).json({
+          success: false,
+          message: "El Admin Control Center audita transferencias, pero la revisión operativa corresponde al negocio",
+        });
+      }
       const role = (req as any).businessAccess?.role || actor?.role;
       const data = await this.service.review(Number(req.params.id), Number(actor?.userId), role, req.body.status, req.body.message, Number(req.body.expectedVersion));
-      res.json({ success: true, message: req.body.status === "reviewed" ? "Comprobante revisado" : "Aclaración solicitada", data });
+      return res.json({ success: true, message: req.body.status === "reviewed" ? "Comprobante revisado" : "Aclaración solicitada", data });
     } catch (error) { next(error); }
   };
 }

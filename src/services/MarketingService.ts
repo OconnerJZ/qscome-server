@@ -14,10 +14,18 @@ export class MarketingService {
   private readonly campaigns = AppDataSource.getRepository(MarketingCampaign);
   private readonly ads = AppDataSource.getRepository(AdCampaign);
 
-  private async requireFeature(businessId: number, key: string, message: string) {
+  private async requireFeature(
+    businessId: number,
+    key: string,
+    message: string,
+    requireWrite = false,
+  ) {
     const capabilities = await this.plans.resolveCapabilities(businessId);
     const feature = capabilities.features.find((item) => item.key === key);
     if (!feature?.included || feature.status !== "available") throw new HttpError(403, message);
+    if (requireWrite && feature.accessMode === "read_only") {
+      throw new HttpError(409, "La función está temporalmente en modo solo lectura");
+    }
     return capabilities;
   }
 
@@ -32,8 +40,15 @@ export class MarketingService {
       this.ads.find({ where: { businessId }, order: { createdAt: "DESC" }, take: 50 }),
     ]);
     return {
-      marketing: { available: Boolean(marketing?.included && marketing.status === "available"), campaigns },
-      segments: { available: Boolean(segments?.included && segments.status === "available") },
+      marketing: {
+        available: Boolean(marketing?.included && marketing.status === "available"),
+        accessMode: marketing?.accessMode || "disabled",
+        campaigns,
+      },
+      segments: {
+        available: Boolean(segments?.included && segments.status === "available"),
+        accessMode: segments?.accessMode || "disabled",
+      },
       ads: {
         available: true,
         commercialModel: "separate_product",
@@ -46,7 +61,7 @@ export class MarketingService {
   }
 
   async createCampaign(businessId: number, actorUserId: number, input: any) {
-    await this.requireFeature(businessId, "marketing.center", "Marketing Center requiere Nivel 1 o superior");
+    await this.requireFeature(businessId, "marketing.center", "Marketing Center requiere Nivel 1 o superior", true);
     const name = String(input?.name || "").trim();
     const message = String(input?.message || "").trim();
     const objective = input?.objective as MarketingObjective;
@@ -65,7 +80,7 @@ export class MarketingService {
   }
 
   async setCampaignStatus(businessId: number, campaignId: number, status: MarketingCampaignStatus) {
-    await this.requireFeature(businessId, "marketing.center", "Marketing Center requiere Nivel 1 o superior");
+    await this.requireFeature(businessId, "marketing.center", "Marketing Center requiere Nivel 1 o superior", true);
     if (!CAMPAIGN_STATUSES.includes(status)) throw new HttpError(400, "Estado inválido");
     const campaign = await this.campaigns.findOne({ where: { businessId, campaignId } });
     if (!campaign) throw new HttpError(404, "Campaña no encontrada");
@@ -127,7 +142,26 @@ export class MarketingService {
     if (!Number.isFinite(dailyBudget) || dailyBudget <= 0 || !Number.isFinite(totalBudget) || totalBudget < dailyBudget) throw new HttpError(400, "Presupuesto inválido");
     if (radiusKm !== null && (!Number.isFinite(radiusKm) || radiusKm <= 0 || radiusKm > 200)) throw new HttpError(400, "Radio inválido");
     if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) throw new HttpError(400, "Rango de fechas inválido");
-    return this.ads.save(this.ads.create({ businessId, createdBy: actorUserId, name, surface, objective: String(input?.objective || "orders").slice(0, 40), dailyBudget: dailyBudget.toFixed(2), totalBudget: totalBudget.toFixed(2), radiusKm: radiusKm === null ? null : radiusKm.toFixed(2), startsAt, endsAt, status: "draft", spentAmount: "0.00", impressions: 0, clicks: 0 }));
+    return this.ads.save(this.ads.create({
+      businessId,
+      createdBy: actorUserId,
+      name,
+      surface,
+      objective: String(input?.objective || "orders").slice(0, 40),
+      dailyBudget: dailyBudget.toFixed(2),
+      totalBudget: totalBudget.toFixed(2),
+      radiusKm: radiusKm === null ? null : radiusKm.toFixed(2),
+      startsAt,
+      endsAt,
+      status: "draft",
+      moderationStatus: "not_submitted",
+      moderationReason: null,
+      moderatedBy: null,
+      moderatedAt: null,
+      spentAmount: "0.00",
+      impressions: 0,
+      clicks: 0,
+    }));
   }
 
   async submitAd(businessId: number, adCampaignId: number) {
@@ -135,6 +169,10 @@ export class MarketingService {
     if (!ad) throw new HttpError(404, "Campaña publicitaria no encontrada");
     if (!(["draft", "paused"] as string[]).includes(ad.status)) throw new HttpError(409, "La campaña no puede enviarse desde su estado actual");
     ad.status = "pending_billing";
+    ad.moderationStatus = "pending";
+    ad.moderationReason = null;
+    ad.moderatedBy = null;
+    ad.moderatedAt = null;
     return this.ads.save(ad);
   }
 
@@ -148,11 +186,13 @@ export class MarketingService {
 
   async sponsored(surface: AdSurface = "explore") {
     if (!SURFACES.includes(surface)) throw new HttpError(400, "Superficie inválida");
-    // No campaign reaches active automatically while billing/approval is disabled.
+    // A moderation approval never activates serving by itself. Billing and serving
+    // remain separate gates and no campaign reaches active automatically.
     return this.ads.createQueryBuilder("ad")
       .innerJoinAndSelect("business", "b", "b.business_id = ad.business_id")
       .where("ad.surface = :surface", { surface })
       .andWhere("ad.status = 'active'")
+      .andWhere("ad.moderation_status = 'approved'")
       .andWhere("ad.starts_at <= NOW() AND ad.ends_at >= NOW()")
       .select(["ad.ad_campaign_id AS adCampaignId", "ad.business_id AS businessId", "ad.surface AS surface", "b.business_name AS businessName"])
       .orderBy("ad.ad_campaign_id", "DESC")

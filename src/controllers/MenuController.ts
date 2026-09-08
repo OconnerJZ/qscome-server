@@ -2,13 +2,18 @@
 // Controller delgado: parsea HTTP y delega en MenuService. Errores → errorHandler.
 
 import { Request, Response, NextFunction } from "express";
+import { BusinessPlatformService } from "../services/BusinessPlatformService";
 import { MenuService } from "../services/MenuService";
 
 export class MenuController {
   private readonly service = new MenuService();
+  private readonly platform = new BusinessPlatformService();
 
   getAll = async (_req: Request, res: Response, next: NextFunction) => {
-    try { res.json({ success: true, data: await this.service.list() }); } catch (error) { next(error); }
+    try {
+      const data = await this.service.list();
+      res.json({ success: true, data: await this.platform.filterActive(data) });
+    } catch (error) { next(error); }
   };
 
   getById = async (req: Request, res: Response, next: NextFunction) => {

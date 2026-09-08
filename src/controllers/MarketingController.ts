@@ -1,8 +1,10 @@
 import { NextFunction, Request, Response } from "express";
+import { BusinessPlatformService } from "../services/BusinessPlatformService";
 import { MarketingService } from "../services/MarketingService";
 
 export class MarketingController {
   private readonly service = new MarketingService();
+  private readonly platform = new BusinessPlatformService();
 
   overview = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -61,7 +63,8 @@ export class MarketingController {
   sponsored = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const surface = String(req.query.surface || "explore") as "explore" | "hero";
-      res.json({ success: true, data: await this.service.sponsored(surface) });
+      const data = await this.service.sponsored(surface);
+      res.json({ success: true, data: await this.platform.filterActive(data) });
     } catch (error) { next(error); }
   };
 }

@@ -3,15 +3,18 @@
 // en el serializer y los errores en el errorHandler global (via next).
 
 import { Request, Response, NextFunction } from "express";
+import { BusinessPlatformService } from "../services/BusinessPlatformService";
 import { BusinessService } from "../services/BusinessService";
 
 export class BusinessController {
   private readonly service = new BusinessService();
+  private readonly platform = new BusinessPlatformService();
 
   // GET /api/business
   getAll = async (_req: Request, res: Response, next: NextFunction) => {
     try {
-      res.json({ success: true, data: await this.service.list() });
+      const data = await this.service.list();
+      res.json({ success: true, data: await this.platform.filterActive(data) });
     } catch (error) {
       next(error);
     }

@@ -10,6 +10,7 @@ import {
   isBusinessPlanCode,
 } from "../security/businessPlans";
 import { HttpError } from "../utils/httpError";
+import { FeatureControlResolverService } from "./FeatureControlResolverService";
 
 interface TrialInput {
   planCode: string;
@@ -20,6 +21,7 @@ interface TrialInput {
 
 export class BusinessPlanService {
   private readonly subscriptions = AppDataSource.getRepository(BusinessPlanSubscription);
+  private readonly featureControls = new FeatureControlResolverService();
 
   catalog() {
     return getBusinessPlanCatalog();
@@ -36,6 +38,11 @@ export class BusinessPlanService {
     const effectivePlanCode = this.getEffectivePlanCode(subscription);
     const definition = getBusinessPlanDefinition(effectivePlanCode);
     const baseDefinition = getBusinessPlanDefinition(basePlanCode);
+    const features = await this.featureControls.resolveFeatures(
+      businessId,
+      definition.code,
+      definition.features,
+    );
 
     return {
       businessId,
@@ -57,7 +64,7 @@ export class BusinessPlanService {
       },
       trial,
       policies: { ...definition.policies },
-      features: definition.features.map((feature) => ({ ...feature })),
+      features,
       limits: { ...definition.limits },
     };
   }
