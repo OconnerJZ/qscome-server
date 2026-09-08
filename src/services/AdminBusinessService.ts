@@ -2,6 +2,7 @@ import { AppDataSource } from "../utils/db";
 import { AuditLogs } from "../entities/AuditLogs";
 import { Business, BusinessPlatformStatus } from "../entities/Business";
 import { Menus } from "../entities/Menus";
+import { emitBusinessPlatformStatusChanged } from "../utils/socket";
 import { HttpError } from "../utils/httpError";
 import { BusinessMembershipService } from "./BusinessMembershipService";
 import { BusinessPlanService } from "./BusinessPlanService";
@@ -130,6 +131,7 @@ export class AdminBusinessService {
     actorUserId: number,
   ) {
     const input = normalizeAdminBusinessStatusInput(rawStatus, rawReason);
+    let statusChanged = false;
 
     await AppDataSource.transaction(async (manager) => {
       const repo = manager.getRepository(Business);
@@ -151,6 +153,7 @@ export class AdminBusinessService {
       business.suspendedAt = input.status === "suspended" ? new Date() : null;
       business.suspensionReason = input.reason;
       await repo.save(business);
+      statusChanged = true;
 
       const auditRepo = manager.getRepository(AuditLogs);
       await auditRepo.save(auditRepo.create({
@@ -166,6 +169,10 @@ export class AdminBusinessService {
         }),
       }));
     });
+
+    if (statusChanged) {
+      await emitBusinessPlatformStatusChanged(businessId, input.status, input.reason);
+    }
 
     return this.get(businessId);
   }
