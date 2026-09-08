@@ -4,6 +4,26 @@ import { HttpError } from "../utils/httpError";
 export const ADMIN_AUDIT_SOURCES = ["platform", "plans"] as const;
 export type AdminAuditSource = typeof ADMIN_AUDIT_SOURCES[number];
 
+export const ADMIN_PLATFORM_AUDIT_ACTIONS = [
+  "BUSINESS_SUSPENDED",
+  "BUSINESS_REACTIVATED",
+  "BUSINESS_VERIFIED",
+  "BUSINESS_UNVERIFIED",
+  "USER_BLOCKED",
+  "USER_REACTIVATED",
+  "USER_GLOBAL_ROLE_CHANGED",
+  "FEATURE_CONTROL_OVERRIDE_CLEARED",
+  "FEATURE_CONTROL_OVERRIDE_SET",
+  "AD_MODERATION_APPROVED",
+  "AD_MODERATION_REJECTED",
+  "MARKETING_CAMPAIGN_ADMIN_PAUSED",
+  "MARKETING_CAMPAIGN_ADMIN_ENDED",
+  "AD_CAMPAIGN_ADMIN_PAUSED",
+  "AD_CAMPAIGN_ADMIN_ENDED",
+] as const;
+
+const platformActionPlaceholders = ADMIN_PLATFORM_AUDIT_ACTIONS.map(() => "?").join(", ");
+
 const parseJson = (value: unknown) => {
   if (value == null || value === "") return null;
   if (typeof value !== "string") return value;
@@ -40,7 +60,8 @@ export class AdminAuditService {
       AppDataSource.query(`
         SELECT COUNT(*) total
         FROM audit_logs
-      `),
+        WHERE action IN (${platformActionPlaceholders})
+      `, [...ADMIN_PLATFORM_AUDIT_ACTIONS]),
       AppDataSource.query(`
         SELECT COUNT(*) total
         FROM business_plan_audit_events
@@ -48,11 +69,13 @@ export class AdminAuditService {
       AppDataSource.query(`
         SELECT MAX(created_at) latestAt
         FROM (
-          SELECT created_at FROM audit_logs
+          SELECT created_at
+          FROM audit_logs
+          WHERE action IN (${platformActionPlaceholders})
           UNION ALL
           SELECT created_at FROM business_plan_audit_events
         ) audit_union
-      `),
+      `, [...ADMIN_PLATFORM_AUDIT_ACTIONS]),
     ]);
 
     const platform = Number(platformRows?.[0]?.total || 0);
@@ -107,6 +130,7 @@ export class AdminAuditService {
             audit.created_at createdAt
           FROM audit_logs audit
           LEFT JOIN users actor ON actor.user_id = audit.actor_user_id
+          WHERE audit.action IN (${platformActionPlaceholders})
         ` : `
           SELECT
             NULL eventKey, NULL source, NULL eventId, NULL actorUserId,
@@ -148,6 +172,7 @@ export class AdminAuditService {
       ORDER BY events.createdAt DESC, events.eventId DESC
       LIMIT ${limit}
     `, [
+      ...(platformEnabled ? ADMIN_PLATFORM_AUDIT_ACTIONS : []),
       q, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`,
       action, action,
       actorUserId, actorUserId,
