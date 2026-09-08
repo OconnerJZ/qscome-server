@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isBusinessPlatformActive } from "./BusinessPlatformService";
+import {
+  getBusinessIdFromPlatformItem,
+  isBusinessPlatformActive,
+} from "./BusinessPlatformService";
 
 test("isBusinessPlatformActive keeps legacy/active businesses available", () => {
   assert.equal(isBusinessPlatformActive(undefined), true);
@@ -10,4 +13,9 @@ test("isBusinessPlatformActive keeps legacy/active businesses available", () => 
 
 test("isBusinessPlatformActive blocks suspended businesses", () => {
   assert.equal(isBusinessPlatformActive("suspended"), false);
+});
+
+test("platform filters prefer businessId over an unrelated item id", () => {
+  assert.equal(getBusinessIdFromPlatformItem({ id: 91, businessId: 7 }), 7);
+  assert.equal(getBusinessIdFromPlatformItem({ id: 12, businessId: null }), 12);
 });
