@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { AdminController } from "../controllers/AdminController";
 import { AdminFeatureControlController } from "../controllers/AdminFeatureControlController";
+import { AdminHealthController } from "../controllers/AdminHealthController";
 import { AdminMarketingController } from "../controllers/AdminMarketingController";
 import { AdminPaymentsController } from "../controllers/AdminPaymentsController";
 import { authenticate } from "../middlewares/authMiddleware";
@@ -28,11 +29,13 @@ import {
 const router = Router();
 const adminController = new AdminController();
 const featureController = new AdminFeatureControlController();
+const healthController = new AdminHealthController();
 const marketingController = new AdminMarketingController();
 const paymentsController = new AdminPaymentsController();
 const adminOnly = [authenticate, authorize("admin")] as const;
 
 router.get("/dashboard", ...adminOnly, adminController.dashboard);
+router.get("/health", ...adminOnly, healthController.snapshot);
 
 router.get("/users", ...adminOnly, adminController.searchUsers);
 router.get("/users/:id", ...adminOnly, adminController.userDetail);
