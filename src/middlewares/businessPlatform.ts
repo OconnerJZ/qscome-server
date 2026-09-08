@@ -67,6 +67,12 @@ export const requireActiveOrderBusiness = (param = "id") =>
     }
   };
 
+export const requireActiveOrderBusinessUnlessCancellation = (param = "id") =>
+  async (req: Request, res: Response, next: NextFunction) => {
+    if (req.body?.status === "cancelled") return next();
+    return requireActiveOrderBusiness(param)(req, res, next);
+  };
+
 export const requireActiveBusinessesFromItemsBody = (field = "items") =>
   async (req: Request, _res: Response, next: NextFunction) => {
     try {
