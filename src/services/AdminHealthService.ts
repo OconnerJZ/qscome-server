@@ -13,13 +13,35 @@ interface ComponentProbe<T> {
   details: T;
 }
 
+interface DiskSnapshot {
+  totalBytes: number;
+  availableBytes: number;
+  usedPercent: number | null;
+}
+
 const elapsedMs = (startedAt: bigint) => Number(process.hrtime.bigint() - startedAt) / 1_000_000;
 
 export const derivePlatformHealthStatus = (
   statuses: ComponentHealthStatus[],
 ): PlatformHealthStatus => statuses.every((status) => status === "healthy") ? "healthy" : "degraded";
 
-const diskSnapshot = async (targetPath: string) => {
+export const deriveStorageHealthStatus = ({
+  publicUploads,
+  privateEvidence,
+  disk,
+}: {
+  publicUploads: ComponentHealthStatus;
+  privateEvidence: ComponentHealthStatus;
+  disk: DiskSnapshot | null;
+}): ComponentHealthStatus => (
+  publicUploads === "healthy"
+  && privateEvidence === "healthy"
+  && disk != null
+  && disk.totalBytes > 0
+  && disk.availableBytes >= 0
+) ? "healthy" : "unhealthy";
+
+const diskSnapshot = async (targetPath: string): Promise<DiskSnapshot> => {
   const stats = await fs.statfs(targetPath);
   const blockSize = Number(stats.bsize);
   const totalBytes = Number(stats.blocks) * blockSize;
@@ -102,7 +124,7 @@ export class AdminHealthService {
   private async storageProbe(): Promise<ComponentProbe<{
     publicUploads: ComponentHealthStatus;
     privateEvidence: ComponentHealthStatus;
-    disk: { totalBytes: number; availableBytes: number; usedPercent: number | null } | null;
+    disk: DiskSnapshot | null;
   }>> {
     const probe = async (targetPath: string): Promise<ComponentHealthStatus> => {
       try {
@@ -118,7 +140,7 @@ export class AdminHealthService {
       probe(privateEvidenceUploadsPath),
     ]);
 
-    let disk: { totalBytes: number; availableBytes: number; usedPercent: number | null } | null = null;
+    let disk: DiskSnapshot | null = null;
     try {
       disk = await diskSnapshot(publicUploadsPath);
     } catch {
@@ -126,7 +148,7 @@ export class AdminHealthService {
     }
 
     return {
-      status: publicUploads === "healthy" && privateEvidence === "healthy" ? "healthy" : "unhealthy",
+      status: deriveStorageHealthStatus({ publicUploads, privateEvidence, disk }),
       details: { publicUploads, privateEvidence, disk },
     };
   }
