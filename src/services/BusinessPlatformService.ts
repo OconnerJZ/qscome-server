@@ -5,6 +5,10 @@ import { HttpError } from "../utils/httpError";
 
 export const isBusinessPlatformActive = (status?: string | null) => status !== "suspended";
 
+export const getBusinessIdFromPlatformItem = (
+  item: { id?: number | null; businessId?: number | null },
+) => Number(item.businessId ?? item.id);
+
 export class BusinessPlatformService {
   private readonly repository = AppDataSource.getRepository(Business);
 
@@ -27,8 +31,12 @@ export class BusinessPlatformService {
     }
   }
 
-  async filterActive<T extends { id?: number; businessId?: number }>(items: T[]) {
-    const ids = [...new Set(items.map((item) => Number(item.id ?? item.businessId)).filter((id) => Number.isInteger(id) && id > 0))];
+  async filterActive<T extends { id?: number | null; businessId?: number | null }>(items: T[]) {
+    const ids = [...new Set(
+      items
+        .map(getBusinessIdFromPlatformItem)
+        .filter((id) => Number.isInteger(id) && id > 0),
+    )];
     if (!ids.length) return [];
 
     const businesses = await this.repository.find({
@@ -40,6 +48,6 @@ export class BusinessPlatformService {
         .filter((business) => isBusinessPlatformActive(business.platformStatus))
         .map((business) => business.businessId),
     );
-    return items.filter((item) => activeIds.has(Number(item.id ?? item.businessId)));
+    return items.filter((item) => activeIds.has(getBusinessIdFromPlatformItem(item)));
   }
 }
